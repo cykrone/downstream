@@ -174,6 +174,7 @@ namespace Downstream.Race
                 var cam = Instantiate(_cameraPrefab);
                 cam.name = $"Camera P{i + 1}";
                 cam.Target = _views[i];
+                cam.Water = _water.Water;
                 cam.GetComponent<Camera>().rect = SplitScreenLayout.ViewportFor(i, players);
                 _cameras.Add(cam);
             }

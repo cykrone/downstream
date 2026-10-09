@@ -10,8 +10,8 @@ namespace Downstream.World
     /// <summary>
     /// Dresses the greybox river at runtime so the world reads as the design's toy diorama before
     /// any modelled kit exists: rolling grass hills behind the banks, round-canopy and pine trees,
-    /// rocks, reeds at the waterline, flower clusters in the pop colours, a small story cluster every
-    /// 100 m of bank, and chunky clouds that throw shadows on the water. Everything is built from the
+    /// rocks, reeds at the waterline, flower clusters in the pop colours, and a small story cluster every
+    /// 100 m of bank. Everything is built from the
     /// block kit's primitives with a fixed seed, nothing is saved in the scene, and the materials are
     /// shared so the SRP batcher keeps the draw count cheap.
     /// </summary>
@@ -30,14 +30,13 @@ namespace Downstream.World
         [SerializeField] private Material _tent;
         [SerializeField] private Material _post;
         [SerializeField] private Material _lantern;
-        [SerializeField] private Material _cloud;
         [Header("Density")]
         [SerializeField] private float _meadowTreesPer100m = 5f;
         [SerializeField] private float _hillTreesPer100m = 28f;
         [SerializeField] private float _hillDepth = 240f;
 
         private readonly List<Mesh> _meshes = new List<Mesh>();
-        private Mesh _canopy, _cone, _trunkMesh, _rockA, _rockB, _rockC, _reedMesh, _flower, _tentMesh, _postMesh, _lanternMesh, _cloudBlob, _flag;
+        private Mesh _canopy, _cone, _trunkMesh, _rockA, _rockB, _rockC, _reedMesh, _flower, _tentMesh, _postMesh, _lanternMesh, _flag;
         private System.Random _rng;
         private ProceduralRiverSettings _g;
         private bool _built;
@@ -67,8 +66,6 @@ namespace Downstream.World
             plants.SetParent(transform, false);
             var story = new GameObject("Story").transform;
             story.SetParent(transform, false);
-            var clouds = new GameObject("Clouds").transform;
-            clouds.SetParent(transform, false);
 
             float halfWidth = _g.Width * 0.5f;
             float meadowIn = halfWidth + 3.2f;             // past the channel lip
@@ -87,7 +84,6 @@ namespace Downstream.World
                 ScatterRocks(rocks, side, hillsIn, hillsIn + _hillDepth, 2.2f);
             }
             BuildStoryClusters(story, meadowIn + 1.5f, meadowOut - 1.5f);
-            BuildClouds(clouds);
         }
 
         private void OnDestroy()
@@ -159,7 +155,6 @@ namespace Downstream.World
             _tentMesh = Keep(BlockMeshes.BevelledBox(new Vector3(3.2f, 3.2f, 3.6f), 0.15f, "Tent"));
             _postMesh = Keep(BlockMeshes.Cylinder(0.09f, 1f, 6, "Post"));
             _lanternMesh = Keep(BlockMeshes.BevelledBox(new Vector3(0.35f, 0.45f, 0.35f), 0.06f, "Lantern"));
-            _cloudBlob = Keep(BlockMeshes.FlatSphere(1f, 4, 8, "CloudBlob"));
             _flag = Keep(BlockMeshes.BevelledBox(new Vector3(0.45f, 0.35f, 0.04f), 0.03f, "Flag"));
         }
 
@@ -371,31 +366,6 @@ namespace Downstream.World
                 float sag = 0.5f * Mathf.Sin(t * Mathf.PI);
                 var pos = Vector3.Lerp(a, b, t) + Vector3.up * (2.7f - sag);
                 Prop(parent, "Flag", _flag, Pick(_flowers), pos, Quaternion.Euler(0f, 90f, 0f), Vector3.one, false);
-            }
-        }
-
-        // ---- clouds -----------------------------------------------------------------------------
-
-        private void BuildClouds(Transform parent)
-        {
-            int count = Mathf.RoundToInt(_g.Length / 55f);
-            for (int i = 0; i < count; i++)
-            {
-                float z = Rand(-100f, _g.Length + 200f);
-                float x = ProceduralRiver.CentreX(_g, z) + Rand(-320f, 320f);
-                float y = Surface(z) + Rand(95f, 150f);
-                var cloud = new GameObject("Cloud").transform;
-                cloud.SetParent(parent, false);
-                cloud.position = new Vector3(x, y, z);
-                int blobs = _rng.Next(3, 6);
-                float width = Rand(18f, 40f);
-                for (int bIndex = 0; bIndex < blobs; bIndex++)
-                {
-                    float t = (bIndex + 0.5f) / blobs;
-                    float r = Rand(8f, 14f) * (0.7f + 0.6f * Mathf.Sin(t * Mathf.PI));
-                    var pos = cloud.position + new Vector3((t - 0.5f) * width, Rand(-2f, 2f), Rand(-5f, 5f));
-                    Prop(cloud, "Blob", _cloudBlob, _cloud, pos, Quaternion.identity, new Vector3(r, r * 0.45f, r * 0.8f));
-                }
             }
         }
     }

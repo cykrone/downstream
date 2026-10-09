@@ -99,7 +99,7 @@ namespace Downstream.Editor
             gizmos.FindProperty("_river").objectReferenceValue = river;
             gizmos.ApplyModifiedPropertiesWithoutUndo();
 
-            // Set dressing: hills, trees, rocks, reeds, flowers, story props and clouds, built at runtime.
+            // Set dressing: hills, trees, rocks, reeds, flowers and story props, built at runtime.
             var dressing = new GameObject("Greybox Dressing", typeof(GreyboxDressing));
             WireDressing(dressing.GetComponent<GreyboxDressing>(), river, groundShader, litShader);
 
@@ -181,7 +181,6 @@ namespace Downstream.Editor
             so.FindProperty("_tent").objectReferenceValue = EnsureMaterial(dir + "/Tent.mat", litShader, Tomato, 0.25f);
             so.FindProperty("_post").objectReferenceValue = EnsureMaterial(dir + "/Post.mat", litShader, new Color(0.50f, 0.38f, 0.26f), 0.15f);
             so.FindProperty("_lantern").objectReferenceValue = lantern;
-            so.FindProperty("_cloud").objectReferenceValue = EnsureMaterial(dir + "/Cloud.mat", litShader, new Color(0.97f, 0.97f, 0.99f), 0.05f);
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 

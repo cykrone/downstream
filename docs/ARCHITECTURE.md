@@ -40,7 +40,10 @@ and draws as a 0.5 m sawtooth at grazing angles.
 `RaceDirector` builds the water and the race, spawns views, runs the fixed-step accumulator in
 `Update`, and gives each `BoatView` a state interpolated between the last two ticks. Humans and AI
 both produce `BoatInput`, so AI can never do what a controller cannot. `LocalPlayerJoin` pairs each
-device to its own copy of the actions for split-screen; `SplitScreenLayout` gives the viewports.
+device to its own copy of the actions for split-screen; `SplitScreenLayout` gives the viewports. `ChaseCamera` reads the water: it looks at the surface 12 m
+ahead rather than at the boat's level (so a graded river stays in frame), measures its height from the
+surface under it, and lifts where the water ahead drops more than the local grade predicts, which is
+the design's "lifts over falls to show the pool below".
 
 ## River features
 
@@ -91,8 +94,7 @@ grade (`_RiverBaseSlope`), so only rapids, ledges and the falls break white.
 `GreyboxDressing` dresses the valley at runtime from a fixed seed, nothing saved in the scene:
 rolling grass hills behind the bank blocks (a heightfield in river coordinates, so it follows the
 meander), round-canopy and pine trees, rocks, reeds at the waterline, flower clusters in the pop
-colours, a small story cluster (camp or bunting) every 100 m of bank, and chunky clouds that throw
-shadows on the water. Props share a handful of materials each (five canopy greens, three pines) so the
+colours, and a small story cluster (camp or bunting) every 100 m of bank. Props share a handful of materials each (five canopy greens, three pines) so the
 SRP batcher keeps the draw count down. `WaterTextures` generates tileable ripple normals, foam strokes and pebbles at
 runtime so the repository ships no binary placeholders; painted textures replace them with no shader
 change. `GreyboxSceneBuilder` applies the design doc's rendering rules (warm key from the upper left,
