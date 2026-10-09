@@ -59,6 +59,13 @@ namespace Downstream.Water
             _greybox = ProceduralRiverSettings.Default;
             _greybox.Length = 1500f;
             _greybox.Gradient = 0.268f; // 15 degrees: the river runs steeply downhill (402 m over the course, plus the falls)
+            // Two meanders: a 40 m swing every 300 m plus a 10 m wobble every 200 m give S-bends and chicanes
+            // (heading swings of about 50 degrees, no bend tighter than about 36 m).
+            _greybox.MeanderAmplitude = 40f;
+            _greybox.MeanderWavelength = 300f;
+            _greybox.MeanderAmplitude2 = 10f;
+            _greybox.MeanderWavelength2 = 200f;
+            _greybox.MeanderPhase2 = 0.9f;
             _greybox.WaterfallDistance = 700f;
             _greybox.WaterfallDrop = 6f;
             _greybox.FloodableBank = 12f;

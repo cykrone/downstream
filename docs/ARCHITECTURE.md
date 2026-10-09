@@ -20,7 +20,9 @@ Floods work because the field stores the bed, not a baked depth: depth is level 
 rising pulse wets the floodable banks.
 
 `ProceduralRiver` generates greybox fields until the editor baker (spline authoring, a compute-shader
-shallow-water solve, hand combing) exists. Its floodable banks ramp up from the channel floor over
+shallow-water solve, hand combing) exists. Its centreline is the sum of two sines (a 40 m swing every
+300 m plus a 10 m wobble every 200 m) for S-bends and chicanes, with the current lane swinging to the
+outside of each bend. Its floodable banks ramp up from the channel floor over
 2.5 m to a shelf 0.5 m above the water: a vertical wall at the channel edge grounds boats on a step
 and draws as a 0.5 m sawtooth at grazing angles.
 
@@ -97,10 +99,14 @@ meander), round-canopy and pine trees, rocks, reeds at the waterline, flower clu
 colours, and a small story cluster (camp or bunting) every 100 m of bank. Props share a handful of materials each (five canopy greens, three pines) so the
 SRP batcher keeps the draw count down. `WaterTextures` generates tileable ripple normals, foam strokes and pebbles at
 runtime so the repository ships no binary placeholders; painted textures replace them with no shader
-change. `GreyboxSceneBuilder` applies the design doc's rendering rules (warm key from the upper left,
-cool trilight ambient so shadows read teal, light linear haze, a small-sun procedural sky, ACES
-tonemapping with a touch of bloom) and configures URP for the water (depth and opaque textures,
-HDR, 4x MSAA, Forward+).
+change. `GreyboxSceneBuilder` applies the design doc's rendering rules (warm key from the upper left, a
+sky-driven ambient so shadows take the sky's colour, light linear haze, a small-sun procedural sky,
+ACES tonemapping with a touch of bloom, a vignette and warm white balance) and configures URP for
+the water and the look (depth and opaque textures, HDR, 4x MSAA plus SMAA, Forward+, four soft
+shadow cascades to 220 m, screen-space ambient occlusion added to the renderer by reflection since
+URP keeps the feature type internal). `GreyboxDressing` refreshes the ambient probe from the sky at
+runtime and renders one realtime reflection probe over the course, which the water blends into its
+sky term. Canopies, bushes and pines are smooth-shaded: the design wants chunky, soft-edged forms.
 
 ## What is next
 

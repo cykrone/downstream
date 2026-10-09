@@ -195,21 +195,24 @@ namespace Downstream.Editor
         {
             var sun = new GameObject("Sun").AddComponent<Light>();
             sun.type = LightType.Directional;
-            sun.color = new Color(1f, 0.93f, 0.80f);
-            sun.intensity = 1.0f;
+            sun.color = new Color(1f, 0.92f, 0.78f);
+            sun.intensity = 1.25f;
             sun.shadows = LightShadows.Soft;
-            sun.shadowStrength = 0.85f; // the sky fill keeps shadows cool, never grey-black
+            sun.shadowStrength = 0.9f; // the sky fill keeps shadows cool, never grey-black
+            sun.shadowBias = 0.03f;
+            sun.shadowNormalBias = 0.5f;
             sun.transform.rotation = Quaternion.Euler(48f, -38f, 0f);
 
             RenderSettings.sun = sun;
             RenderSettings.skybox = sky;
-            RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(0.50f, 0.68f, 0.90f) * 0.8f;
-            RenderSettings.ambientEquatorColor = new Color(0.56f, 0.64f, 0.62f) * 0.7f;
-            RenderSettings.ambientGroundColor = new Color(0.30f, 0.33f, 0.27f) * 0.55f;
+            // Sky-driven fill: cool in the shadows, refreshed at runtime by the dressing (DynamicGI.UpdateEnvironment).
+            RenderSettings.ambientMode = AmbientMode.Skybox;
+            RenderSettings.ambientIntensity = 1.05f;
+            RenderSettings.defaultReflectionMode = DefaultReflectionMode.Skybox;
+            RenderSettings.defaultReflectionResolution = 256;
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
-            RenderSettings.fogColor = new Color(0.70f, 0.81f, 0.90f);
+            RenderSettings.fogColor = new Color(0.74f, 0.82f, 0.88f);
             RenderSettings.fogStartDistance = 80f;
             RenderSettings.fogEndDistance = 750f;
             return sun;
@@ -235,12 +238,18 @@ namespace Downstream.Editor
             var tonemapping = GetOrAdd<Tonemapping>(profile);
             tonemapping.mode.Override(TonemappingMode.ACES);
             var bloom = GetOrAdd<Bloom>(profile);
-            bloom.threshold.Override(1.05f);
-            bloom.intensity.Override(0.28f);
+            bloom.threshold.Override(1.0f);
+            bloom.intensity.Override(0.32f);
+            bloom.scatter.Override(0.72f);
             var colour = GetOrAdd<ColorAdjustments>(profile);
-            colour.postExposure.Override(0f);
-            colour.contrast.Override(5f);
-            colour.saturation.Override(6f);
+            colour.postExposure.Override(0.05f);
+            colour.contrast.Override(12f);
+            colour.saturation.Override(12f);
+            var vignette = GetOrAdd<Vignette>(profile);
+            vignette.intensity.Override(0.24f);
+            vignette.smoothness.Override(0.45f);
+            var balance = GetOrAdd<WhiteBalance>(profile);
+            balance.temperature.Override(8f);
             EditorUtility.SetDirty(profile);
             return profile;
         }
@@ -312,7 +321,8 @@ namespace Downstream.Editor
             camera.allowHDR = true;
             var data = camera.GetUniversalAdditionalCameraData();
             data.renderPostProcessing = true;
-            data.antialiasing = AntialiasingMode.None; // MSAA comes from the pipeline asset
+            data.antialiasing = AntialiasingMode.SubpixelMorphologicalAntiAliasing; // on top of the pipeline's MSAA
+            data.antialiasingQuality = AntialiasingQuality.High;
             var prefab = PrefabUtility.SaveAsPrefabAsset(go, path);
             Object.DestroyImmediate(go);
             return prefab.GetComponent<ChaseCamera>();
@@ -337,13 +347,14 @@ namespace Downstream.Editor
             }
 
             renderer.renderingMode = RenderingMode.ForwardPlus;
+            EnsureSsao(renderer);
             // The water refracts the opaque texture and fades against the depth texture.
             pipeline.supportsCameraDepthTexture = true;
             pipeline.supportsCameraOpaqueTexture = true;
             pipeline.supportsHDR = true;
             pipeline.msaaSampleCount = 4;
-            pipeline.shadowDistance = 160f;
-            pipeline.shadowCascadeCount = 3;
+            pipeline.shadowDistance = 220f;
+            pipeline.shadowCascadeCount = 4;
             // No public setter for soft shadows; write the serialized field.
             var pipelineSo = new SerializedObject(pipeline);
             pipelineSo.FindProperty("m_SoftShadowsSupported").boolValue = true;
@@ -359,6 +370,50 @@ namespace Downstream.Editor
                 Debug.Log("[Downstream] Created and assigned a URP pipeline asset (Forward+, depth and opaque textures, HDR, 4x MSAA).");
             }
             AssetDatabase.SaveAssets();
+        }
+
+        /// <summary>Screen-space ambient occlusion: the contact shading that makes blocks sit on the ground.
+        /// The URP feature type is internal, so it is created by name and wired through the serialized lists.</summary>
+        private static void EnsureSsao(UniversalRendererData renderer)
+        {
+            var type = System.Type.GetType("UnityEngine.Rendering.Universal.ScreenSpaceAmbientOcclusion, Unity.RenderPipelines.Universal.Runtime");
+            if (type == null)
+            {
+                Debug.LogWarning("[Downstream] URP's ScreenSpaceAmbientOcclusion feature type was not found; skipping SSAO.");
+                return;
+            }
+            ScriptableRendererFeature feature = null;
+            foreach (var f in renderer.rendererFeatures) if (f != null && f.GetType() == type) feature = f;
+            if (feature == null)
+            {
+                feature = (ScriptableRendererFeature)ScriptableObject.CreateInstance(type);
+                feature.name = "Screen Space Ambient Occlusion";
+                AssetDatabase.AddObjectToAsset(feature, renderer);
+                var so = new SerializedObject(renderer);
+                var list = so.FindProperty("m_RendererFeatures");
+                list.arraySize++;
+                list.GetArrayElementAtIndex(list.arraySize - 1).objectReferenceValue = feature;
+                var map = so.FindProperty("m_RendererFeatureMap");
+                map.arraySize++;
+                map.GetArrayElementAtIndex(map.arraySize - 1).longValue = feature.GetInstanceID();
+                so.ApplyModifiedPropertiesWithoutUndo();
+            }
+            var fso = new SerializedObject(feature);
+            var settings = fso.FindProperty("m_Settings");
+            if (settings != null)
+            {
+                void SetF(string name, float v) { var p = settings.FindPropertyRelative(name); if (p != null) p.floatValue = v; }
+                void SetB(string name, bool v) { var p = settings.FindPropertyRelative(name); if (p != null) p.boolValue = v; }
+                SetF("Intensity", 0.6f);
+                SetF("Radius", 0.45f);
+                SetF("Falloff", 160f);
+                SetF("DirectLightingStrength", 0.25f);
+                SetB("Downsample", true);
+                SetB("AfterOpaque", false);
+                fso.ApplyModifiedPropertiesWithoutUndo();
+            }
+            EditorUtility.SetDirty(feature);
+            EditorUtility.SetDirty(renderer);
         }
 
         private static T LoadOrCreate<T>(string path, System.Action<T> init) where T : ScriptableObject

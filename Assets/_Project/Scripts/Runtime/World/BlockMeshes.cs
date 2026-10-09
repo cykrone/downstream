@@ -197,6 +197,74 @@ namespace Downstream.World
             return b.ToMesh(name);
         }
 
+        /// <summary>A smooth-shaded sphere (shared vertices, radial normals): the soft-edged canopies and bushes of the kit.</summary>
+        public static Mesh SmoothSphere(float radius, int rings, int segments, string name)
+        {
+            var verts = new List<Vector3>();
+            var norms = new List<Vector3>();
+            var uvs = new List<Vector2>();
+            var tris = new List<int>();
+            for (int r = 0; r <= rings; r++)
+            {
+                float t = Mathf.PI * r / rings;
+                for (int s = 0; s <= segments; s++)
+                {
+                    float p = 2f * Mathf.PI * s / segments;
+                    var n = new Vector3(Mathf.Sin(t) * Mathf.Cos(p), Mathf.Cos(t), Mathf.Sin(t) * Mathf.Sin(p));
+                    verts.Add(n * radius);
+                    norms.Add(n);
+                    uvs.Add(new Vector2(s / (float)segments, 1f - r / (float)rings));
+                }
+            }
+            int stride = segments + 1;
+            for (int r = 0; r < rings; r++)
+            for (int s = 0; s < segments; s++)
+            {
+                int a = r * stride + s, b = a + 1, c = a + stride, d = c + 1;
+                if (r > 0) { tris.Add(a); tris.Add(b); tris.Add(c); }
+                if (r < rings - 1) { tris.Add(b); tris.Add(d); tris.Add(c); }
+            }
+            var m = new Mesh { name = name };
+            m.SetVertices(verts); m.SetNormals(norms); m.SetUVs(0, uvs); m.SetTriangles(tris, 0);
+            m.RecalculateBounds();
+            return m;
+        }
+
+        /// <summary>A smooth-shaded cone standing on y = 0 with a flat base: pine tiers.</summary>
+        public static Mesh SmoothCone(float radius, float height, int segments, string name)
+        {
+            var verts = new List<Vector3>();
+            var norms = new List<Vector3>();
+            var tris = new List<int>();
+            float slope = radius / height;
+            for (int s = 0; s <= segments; s++)
+            {
+                float p = 2f * Mathf.PI * s / segments;
+                var dir = new Vector3(Mathf.Cos(p), 0f, Mathf.Sin(p));
+                var n = (dir + Vector3.up * slope).normalized;
+                verts.Add(dir * radius); norms.Add(n);
+                verts.Add(new Vector3(0f, height, 0f)); norms.Add(n);
+            }
+            for (int s = 0; s < segments; s++)
+            {
+                int a = s * 2, apex = s * 2 + 1, c = (s + 1) * 2;
+                tris.Add(a); tris.Add(apex); tris.Add(c);
+            }
+            int centre = verts.Count;
+            verts.Add(Vector3.zero); norms.Add(Vector3.down);
+            int ring = verts.Count;
+            for (int s = 0; s <= segments; s++)
+            {
+                float p = 2f * Mathf.PI * s / segments;
+                verts.Add(new Vector3(Mathf.Cos(p), 0f, Mathf.Sin(p)) * radius); norms.Add(Vector3.down);
+            }
+            for (int s = 0; s < segments; s++) { tris.Add(centre); tris.Add(ring + s); tris.Add(ring + s + 1); }
+            var m = new Mesh { name = name };
+            m.SetVertices(verts); m.SetNormals(norms); m.SetTriangles(tris, 0);
+            m.RecalculateBounds();
+            return m;
+        }
+
         /// <summary>A flat-shaded cone standing on y = 0: pine tiers and reeds.</summary>
         public static Mesh Cone(float radius, float height, int segments, string name)
         {

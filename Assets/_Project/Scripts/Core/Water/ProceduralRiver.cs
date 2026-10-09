@@ -57,6 +57,10 @@ namespace Downstream.Core.Water
         /// <summary>Side-to-side meander amplitude, metres. 0 gives a straight channel along +Z.</summary>
         public float MeanderAmplitude;
         public float MeanderWavelength;
+        /// <summary>A second, shorter meander added to the first for S-bends and chicanes. 0 disables it.</summary>
+        public float MeanderAmplitude2;
+        public float MeanderWavelength2;
+        public float MeanderPhase2;
         /// <summary>Waterfall position along the river (metres); negative disables it.</summary>
         public float WaterfallDistance;
         public float WaterfallDrop;
@@ -78,6 +82,9 @@ namespace Downstream.Core.Water
             LaneWidth = 8f,
             MeanderAmplitude = 25f,
             MeanderWavelength = 300f,
+            MeanderAmplitude2 = 0f,
+            MeanderWavelength2 = 1f,
+            MeanderPhase2 = 0f,
             WaterfallDistance = -1f,
             WaterfallDrop = 0f,
             FloodableBank = 0f,
@@ -96,8 +103,50 @@ namespace Downstream.Core.Water
         /// <summary>Height of the floodable shelf above the base water level, metres.</summary>
         public const float BankShelfHeight = 0.5f;
 
-        public static float CentreX(in ProceduralRiverSettings s, float z) =>
-            s.MeanderAmplitude <= 0f ? 0f : s.MeanderAmplitude * SimMath.Sin(2f * SimMath.Pi * z / s.MeanderWavelength);
+        public static float CentreX(in ProceduralRiverSettings s, float z)
+        {
+            float x = s.MeanderAmplitude <= 0f ? 0f : s.MeanderAmplitude * SimMath.Sin(2f * SimMath.Pi * z / s.MeanderWavelength);
+            if (s.MeanderAmplitude2 > 0f && s.MeanderWavelength2 > 0f)
+                x += s.MeanderAmplitude2 * SimMath.Sin(2f * SimMath.Pi * z / s.MeanderWavelength2 + s.MeanderPhase2);
+            return x;
+        }
+
+        /// <summary>dCentreX/dz: the centreline's sideways slope.</summary>
+        public static float CentreSlope(in ProceduralRiverSettings s, float z)
+        {
+            float d = 0f;
+            if (s.MeanderAmplitude > 0f)
+            {
+                float k = 2f * SimMath.Pi / s.MeanderWavelength;
+                d += s.MeanderAmplitude * k * SimMath.Cos(k * z);
+            }
+            if (s.MeanderAmplitude2 > 0f && s.MeanderWavelength2 > 0f)
+            {
+                float k = 2f * SimMath.Pi / s.MeanderWavelength2;
+                d += s.MeanderAmplitude2 * k * SimMath.Cos(k * z + s.MeanderPhase2);
+            }
+            return d;
+        }
+
+        /// <summary>d2CentreX/dz2, and the largest value it can take: which way and how hard the river bends.</summary>
+        public static float CentreCurvature(in ProceduralRiverSettings s, float z, out float max)
+        {
+            float c = 0f;
+            max = 1e-3f;
+            if (s.MeanderAmplitude > 0f)
+            {
+                float k = 2f * SimMath.Pi / s.MeanderWavelength;
+                c -= s.MeanderAmplitude * k * k * SimMath.Sin(k * z);
+                max += s.MeanderAmplitude * k * k;
+            }
+            if (s.MeanderAmplitude2 > 0f && s.MeanderWavelength2 > 0f)
+            {
+                float k = 2f * SimMath.Pi / s.MeanderWavelength2;
+                c -= s.MeanderAmplitude2 * k * k * SimMath.Sin(k * z + s.MeanderPhase2);
+                max += s.MeanderAmplitude2 * k * k;
+            }
+            return c;
+        }
 
         public static float SurfaceAt(in ProceduralRiverSettings s, float distance)
         {
@@ -139,7 +188,7 @@ namespace Downstream.Core.Water
 
         public static RiverField Build(ProceduralRiverSettings s, float cellSize = RiverField.DefaultCellSize)
         {
-            float halfSpan = s.Width * 0.5f + s.FloodableBank + s.MeanderAmplitude + 4f;
+            float halfSpan = s.Width * 0.5f + s.FloodableBank + s.MeanderAmplitude + s.MeanderAmplitude2 + 4f;
             float originX = -halfSpan;
             float originZ = -8f;
             float tileSize = cellSize * RiverField.TileTexels;
@@ -154,14 +203,12 @@ namespace Downstream.Core.Water
                 field.TexelCentre(0, iz, out _, out float z);
                 float distance = SimMath.Clamp(z, 0f, s.Length);
                 float cx = CentreX(s, z);
-                float dcx = s.MeanderAmplitude <= 0f
-                    ? 0f
-                    : s.MeanderAmplitude * 2f * SimMath.Pi / s.MeanderWavelength * SimMath.Cos(2f * SimMath.Pi * z / s.MeanderWavelength);
+                float dcx = CentreSlope(s, z);
                 // Unit tangent of the centreline and the outward side of the current bend.
                 float tl = SimMath.Sqrt(1f + dcx * dcx);
                 float tX = dcx / tl, tZ = 1f / tl;
-                float curvature = -s.MeanderAmplitude * SimMath.Sin(2f * SimMath.Pi * z / s.MeanderWavelength);
-                float laneOffset = SimMath.Clamp(curvature / SimMath.Max(s.MeanderAmplitude, 1e-3f), -1f, 1f) * (halfWidth - s.LaneWidth * 0.5f - 1f);
+                float curvature = CentreCurvature(s, z, out float maxCurvature);
+                float laneOffset = SimMath.Clamp(curvature / maxCurvature, -1f, 1f) * (halfWidth - s.LaneWidth * 0.5f - 1f);
                 float surface = SurfaceAt(s, distance);
 
                 for (int ix = 0; ix < nx; ix++)

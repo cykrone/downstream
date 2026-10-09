@@ -10,11 +10,12 @@ namespace Downstream.Water
     /// </summary>
     public static class WaterTextures
     {
-        private static Texture2D _ripple, _foam, _pebbles;
+        private static Texture2D _ripple, _foam, _pebbles, _soft;
 
         public static Texture2D Ripple => _ripple != null ? _ripple : (_ripple = RippleNormals(256));
         public static Texture2D Foam => _foam != null ? _foam : (_foam = FoamStrokes(256));
         public static Texture2D Pebbles => _pebbles != null ? _pebbles : (_pebbles = PebbleAlbedo(256));
+        public static Texture2D SoftNoise => _soft != null ? _soft : (_soft = SoftNoiseTexture(256));
 
         /// <summary>Tangent-space ripple normals (xy in RG), small capillary waves over longer swells.</summary>
         public static Texture2D RippleNormals(int size)
@@ -95,6 +96,38 @@ namespace Downstream.Water
                 float ridge = Mathf.Max(0f, 1f - Mathf.Abs(a / 3.6f)) * Mathf.Max(0f, 1f - Mathf.Abs(b / 3f) * 0.5f);
                 float value = Mathf.Clamp01(Mathf.Pow(ridge, 1.3f) * 1.3f);
                 byte c = (byte)(value * 255f);
+                px[y * size + x] = new Color32(c, c, c, 255);
+            }
+            tex.SetPixels32(px);
+            tex.Apply(true, true);
+            return tex;
+        }
+
+        /// <summary>Soft, tileable mottling in R (0..1) for breaking up flat grass and ground colours.</summary>
+        public static Texture2D SoftNoiseTexture(int size)
+        {
+            var rng = new System.Random(31);
+            const int components = 12;
+            var fx = new int[components]; var fz = new int[components]; var ph = new float[components]; var amp = new float[components];
+            for (int k = 0; k < components; k++)
+            {
+                float f = 1f + 6f * (float)rng.NextDouble();
+                float ang = (float)(rng.NextDouble() * System.Math.PI * 2);
+                fx[k] = Mathf.RoundToInt(Mathf.Cos(ang) * f); fz[k] = Mathf.RoundToInt(Mathf.Sin(ang) * f);
+                if (fx[k] == 0 && fz[k] == 0) fz[k] = 2;
+                amp[k] = 1f / (1f + Mathf.Sqrt(fx[k] * fx[k] + fz[k] * fz[k]));
+                ph[k] = (float)(rng.NextDouble() * System.Math.PI * 2);
+            }
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, true) { name = "SoftNoise", wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Trilinear };
+            var px = new Color32[size * size];
+            float d = 1f / size, norm = 0f;
+            for (int k = 0; k < components; k++) norm += amp[k];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float u = x * d, v = y * d, h = 0f;
+                for (int k = 0; k < components; k++) h += amp[k] * Mathf.Sin(2f * Mathf.PI * (fx[k] * u + fz[k] * v) + ph[k]);
+                byte c = (byte)(Mathf.Clamp01(0.5f + 0.5f * h / norm * 1.6f) * 255f);
                 px[y * size + x] = new Color32(c, c, c, 255);
             }
             tex.SetPixels32(px);

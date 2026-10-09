@@ -87,7 +87,7 @@ namespace Downstream.Tests
                     Assert.AreEqual(cpu.Normal.Y, normal[i].y, 2e-3f, "NormalY " + at);
                     Assert.AreEqual(cpu.Normal.Z, normal[i].z, 2e-3f, "NormalZ " + at);
                 }
-                Assert.Greater(wet, count / 4, "Expected a good share of sample points on the water.");
+                Assert.Greater(wet, count / 8, "Expected a good share of sample points on the water.");
             }
             finally
             {

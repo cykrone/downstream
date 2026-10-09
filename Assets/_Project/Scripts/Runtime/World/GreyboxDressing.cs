@@ -34,6 +34,7 @@ namespace Downstream.World
         [SerializeField] private float _meadowTreesPer100m = 5f;
         [SerializeField] private float _hillTreesPer100m = 28f;
         [SerializeField] private float _hillDepth = 240f;
+        [SerializeField] private float _bushesPer100m = 9f;
 
         private readonly List<Mesh> _meshes = new List<Mesh>();
         private Mesh _canopy, _cone, _trunkMesh, _rockA, _rockB, _rockC, _reedMesh, _flower, _tentMesh, _postMesh, _lanternMesh, _flag;
@@ -66,6 +67,8 @@ namespace Downstream.World
             plants.SetParent(transform, false);
             var story = new GameObject("Story").transform;
             story.SetParent(transform, false);
+            var bushes = new GameObject("Bushes").transform;
+            bushes.SetParent(transform, false);
 
             float halfWidth = _g.Width * 0.5f;
             float meadowIn = halfWidth + 3.2f;             // past the channel lip
@@ -78,12 +81,53 @@ namespace Downstream.World
                 ScatterTrees(trees, side, meadowIn, meadowOut, _meadowTreesPer100m, 0.75f);
                 ScatterTrees(trees, side, hillsIn, hillsIn + _hillDepth * 0.35f, _hillTreesPer100m, 0.45f);
                 ScatterTrees(trees, side, hillsIn + _hillDepth * 0.35f, hillsIn + _hillDepth, _hillTreesPer100m * 0.35f, 0.4f);
+                ScatterBushes(bushes, side, meadowIn, meadowOut, _bushesPer100m);
+                ScatterBushes(bushes, side, hillsIn, hillsIn + _hillDepth * 0.5f, _bushesPer100m * 1.2f);
                 ScatterReeds(plants, side, halfWidth + 1.3f, halfWidth + 2.6f);
                 ScatterFlowers(plants, side, meadowIn, meadowOut);
                 ScatterRocks(rocks, side, meadowIn, meadowOut, 1.6f);
                 ScatterRocks(rocks, side, hillsIn, hillsIn + _hillDepth, 2.2f);
             }
             BuildStoryClusters(story, meadowIn + 1.5f, meadowOut - 1.5f);
+            SetUpLighting();
+        }
+
+        /// <summary>Sky-driven ambient and one realtime reflection probe over the course, rendered once, so
+        /// shadows take the sky's colour and the water reflects the actual sky and hills.</summary>
+        private void SetUpLighting()
+        {
+            DynamicGI.UpdateEnvironment();
+            var go = new GameObject("Sky Reflection Probe");
+            go.transform.SetParent(transform, false);
+            go.transform.position = new Vector3(ProceduralRiver.CentreX(_g, _g.Length * 0.5f), Surface(_g.Length * 0.5f) + 40f, _g.Length * 0.5f);
+            var probe = go.AddComponent<ReflectionProbe>();
+            probe.mode = ReflectionProbeMode.Realtime;
+            probe.refreshMode = ReflectionProbeRefreshMode.ViaScripting;
+            probe.timeSlicingMode = ReflectionProbeTimeSlicingMode.NoTimeSlicing;
+            probe.resolution = 256;
+            probe.size = new Vector3(6000f, 3000f, 6000f);
+            probe.boxProjection = false;
+            probe.importance = 1;
+            probe.RenderProbe();
+        }
+
+        private void ScatterBushes(Transform parent, int side, float lIn, float lOut, float per100m)
+        {
+            int count = Mathf.RoundToInt(per100m * _g.Length / 100f);
+            for (int i = 0; i < count; i++)
+            {
+                float z = Rand(-10f, _g.Length + 20f);
+                float lateral = Rand(lIn, lOut);
+                var pos = World(side, lateral, z, GroundY(side, lateral, z));
+                float r = Rand(0.9f, 1.8f);
+                var mat = Pick(_canopies);
+                Prop(parent, "Bush", _canopy, mat, pos + Vector3.up * (r * 0.55f), Quaternion.Euler(0f, Rand(0f, 360f), 0f), new Vector3(r, r * 0.7f, r * Rand(0.8f, 1.1f)));
+                if (_rng.NextDouble() < 0.6)
+                {
+                    float r2 = r * 0.7f;
+                    Prop(parent, "Bush", _canopy, mat, pos + new Vector3(Rand(-r, r) * 0.6f, r2 * 0.5f, Rand(-r, r) * 0.6f), Quaternion.identity, new Vector3(r2, r2 * 0.7f, r2));
+                }
+            }
         }
 
         private void OnDestroy()
@@ -144,14 +188,14 @@ namespace Downstream.World
 
         private void BuildMeshes()
         {
-            _canopy = Keep(BlockMeshes.FlatSphere(1f, 5, 9, "Canopy"));
-            _cone = Keep(BlockMeshes.Cone(1f, 1f, 8, "Cone"));
+            _canopy = Keep(BlockMeshes.SmoothSphere(1f, 10, 14, "Canopy"));
+            _cone = Keep(BlockMeshes.SmoothCone(1f, 1f, 14, "Cone"));
             _trunkMesh = Keep(BlockMeshes.Cylinder(0.22f, 1f, 7, "Trunk"));
             _rockA = Keep(BlockMeshes.BevelledBox(new Vector3(1.6f, 1.0f, 1.2f), 0.3f, "RockA"));
             _rockB = Keep(BlockMeshes.BevelledBox(new Vector3(2.6f, 1.5f, 2.0f), 0.45f, "RockB"));
             _rockC = Keep(BlockMeshes.BevelledBox(new Vector3(0.8f, 0.6f, 0.7f), 0.18f, "RockC"));
             _reedMesh = Keep(BlockMeshes.Cone(0.07f, 1f, 5, "Reed"));
-            _flower = Keep(BlockMeshes.FlatSphere(0.16f, 3, 6, "Flower"));
+            _flower = Keep(BlockMeshes.SmoothSphere(0.16f, 5, 8, "Flower"));
             _tentMesh = Keep(BlockMeshes.BevelledBox(new Vector3(3.2f, 3.2f, 3.6f), 0.15f, "Tent"));
             _postMesh = Keep(BlockMeshes.Cylinder(0.09f, 1f, 6, "Post"));
             _lanternMesh = Keep(BlockMeshes.BevelledBox(new Vector3(0.35f, 0.45f, 0.35f), 0.06f, "Lantern"));
@@ -219,6 +263,9 @@ namespace Downstream.World
             var r = go.GetComponent<MeshRenderer>();
             r.sharedMaterial = _hills;
             r.shadowCastingMode = ShadowCastingMode.On;
+            var block = new MaterialPropertyBlock();
+            block.SetTexture("_DetailMap", WaterTextures.SoftNoise);
+            r.SetPropertyBlock(block);
         }
 
         // ---- scatter ----------------------------------------------------------------------------

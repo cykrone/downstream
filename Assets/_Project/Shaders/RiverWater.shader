@@ -26,6 +26,7 @@ Shader "Downstream/River Water"
         _ZenithColor ("Sky reflection, zenith", Color) = (0.42, 0.62, 0.9, 1)
         _HorizonColor ("Sky reflection, horizon", Color) = (0.8, 0.88, 0.95, 1)
         _Fresnel ("Reflectivity at grazing", Range(0, 1)) = 0.9
+        _ProbeMix ("Reflection probe share", Range(0, 1)) = 0.6
 
         [Header(Foam)]
         [NoScaleOffset] _FoamTex ("Foam strokes", 2D) = "white" {}
@@ -85,6 +86,7 @@ Shader "Downstream/River Water"
                 float4 _ZenithColor;
                 float4 _HorizonColor;
                 float _Fresnel;
+                float _ProbeMix;
                 float4 _FoamColor;
                 float _FoamScale;
                 float _FoamFlowStart;
@@ -271,7 +273,9 @@ Shader "Downstream/River Water"
                 float3 R = reflect(-V, Nd);
                 float fresnel = lerp(0.04, 1.0, pow(1.0 - saturate(dot(Nd, V)), 4.0));
                 fresnel = saturate(fresnel * _Fresnel);
-                float3 sky = SkyReflection(R) * (ambient + light.color * shadow) * 0.8;
+                float3 skyGradient = SkyReflection(R) * (ambient + light.color * shadow) * 0.8;
+                float3 probe = GlossyEnvironmentReflection(R, IN.positionWS, 0.12, 1.0, screenUv);
+                float3 sky = lerp(skyGradient, probe * 1.15, _ProbeMix);
                 float3 colour = lerp(lit, sky, fresnel) + spec;
                 // Current lane: the glossy streak itself, a touch brighter where the stretched ripples catch the light.
                 colour += lane ? 0.025 * (0.5 + 0.5 * nf.y) * light.color * shadow : 0.0;

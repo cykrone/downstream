@@ -220,7 +220,7 @@ namespace Downstream.Water
             var g = river.Greybox;
             float distance = Mathf.Clamp(z, 0f, g.Length);
             float cx = Core.Water.ProceduralRiver.CentreX(g, z);
-            float dcx = g.MeanderAmplitude <= 0f ? 0f : g.MeanderAmplitude * 2f * Mathf.PI / g.MeanderWavelength * Mathf.Cos(2f * Mathf.PI * z / g.MeanderWavelength);
+            float dcx = Core.Water.ProceduralRiver.CentreSlope(g, z);
             float tZ = 1f / Mathf.Sqrt(1f + dcx * dcx);
             float lateral = Mathf.Abs((x - cx) * tZ);
             float halfWidth = g.Width * 0.5f;
@@ -262,6 +262,7 @@ namespace Downstream.Water
             _bed.shadowCastingMode = ShadowCastingMode.Off;
             var block = new MaterialPropertyBlock();
             block.SetTexture(BaseMapId, WaterTextures.Pebbles);
+            block.SetTexture("_DetailMap", WaterTextures.SoftNoise);
             _bed.SetPropertyBlock(block);
         }
 

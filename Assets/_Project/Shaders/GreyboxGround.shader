@@ -8,6 +8,8 @@ Shader "Downstream/Greybox Ground"
         _GrassColor ("Grass colour", Color) = (0.40, 0.50, 0.27, 1)
         _SandColor ("Waterline sand", Color) = (0.80, 0.74, 0.58, 1)
         [NoScaleOffset] _BaseMap ("Stones", 2D) = "white" {}
+        [NoScaleOffset] _DetailMap ("Soft mottling", 2D) = "gray" {}
+        _DetailStrength ("Mottling strength", Range(0, 0.6)) = 0.22
     }
 
     SubShader
@@ -34,11 +36,13 @@ Shader "Downstream/Greybox Ground"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
             TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap);
+            TEXTURE2D(_DetailMap); SAMPLER(sampler_DetailMap);
 
             CBUFFER_START(UnityPerMaterial)
                 float4 _StoneColor;
                 float4 _GrassColor;
                 float4 _SandColor;
+                float _DetailStrength;
             CBUFFER_END
 
             struct Attributes
@@ -83,6 +87,10 @@ Shader "Downstream/Greybox Ground"
                 albedo = lerp(albedo, _SandColor.rgb, rim * rim * 0.7);
                 // Vertex G varies the grass a few percent so a field never reads as one flat tile.
                 albedo *= 1.0 + (IN.tint - 0.5) * 0.14;
+                // Two scales of soft mottling, in world space so it never stretches with the mesh.
+                float m = SAMPLE_TEXTURE2D(_DetailMap, sampler_DetailMap, IN.positionWS.xz * 0.045).r * 0.6
+                        + SAMPLE_TEXTURE2D(_DetailMap, sampler_DetailMap, IN.positionWS.xz * 0.21 + 0.37).r * 0.4;
+                albedo *= 1.0 + (m - 0.5) * 2.0 * _DetailStrength;
                 float3 N = normalize(IN.normalWS);
                 Light light = GetMainLight(TransformWorldToShadowCoord(IN.positionWS));
                 float shadow = light.shadowAttenuation * light.distanceAttenuation;
