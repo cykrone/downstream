@@ -57,6 +57,12 @@ namespace Downstream.Core.Sim
         public BoatEvents[] LastEvents { get; }
         public BoatModifiers[] Modifiers { get; }
 
+        /// <summary>
+        /// Parked boats (respawning, or out of the race) are not stepped and take no part in wakes or
+        /// bumps. Whoever parked them owns their state until they are released.
+        /// </summary>
+        public bool[] Parked { get; }
+
         public int Tick => State.Tick;
         public float RaceTime => State.Tick * BoatSimulator.TickDelta;
 
@@ -73,6 +79,7 @@ namespace Downstream.Core.Sim
             Array.Copy(startStates, State.Boats, BoatCount);
             LastEvents = new BoatEvents[BoatCount];
             Modifiers = new BoatModifiers[BoatCount];
+            Parked = new bool[BoatCount];
             _order = new int[BoatCount];
             for (int i = 0; i < BoatCount; i++)
             {
@@ -90,6 +97,11 @@ namespace Downstream.Core.Sim
             UpdateWakes();
             for (int i = 0; i < BoatCount; i++)
             {
+                if (Parked[i])
+                {
+                    LastEvents[i] = BoatEvents.None;
+                    continue;
+                }
                 var input = inputs[i].Quantized();
                 LastEvents[i] = BoatSimulator.Step(ref State.Boats[i], input, Tunings[i], Water, t, Modifiers[i], Collider);
             }
@@ -164,9 +176,9 @@ namespace Downstream.Core.Sim
             {
                 ref var me = ref State.Boats[i];
                 bool slot = false, edge = false;
-                for (int j = 0; j < BoatCount; j++)
+                for (int j = 0; j < BoatCount && !Parked[i]; j++)
                 {
-                    if (j == i) continue;
+                    if (j == i || Parked[j]) continue;
                     ref var rival = ref State.Boats[j];
                     if (rival.Velocity.Flat.SqrMagnitude < WakeMinSpeed * WakeMinSpeed) continue;
                     var rf = rival.FlatForward;
@@ -201,6 +213,7 @@ namespace Downstream.Core.Sim
             for (int i = 0; i < BoatCount; i++)
             for (int j = i + 1; j < BoatCount; j++)
             {
+                if (Parked[i] || Parked[j]) continue;
                 ref var a = ref State.Boats[i];
                 ref var b = ref State.Boats[j];
                 ref readonly var ta = ref Tunings[i];
