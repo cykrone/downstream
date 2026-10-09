@@ -63,6 +63,12 @@ namespace Downstream.Core.Sim
         /// </summary>
         public bool[] Parked { get; }
 
+        /// <summary>Size of each boat's wake; 1 normally, 3 under a Wake Blaster, which swamps the slot behind.</summary>
+        public float[] WakeScale { get; }
+
+        /// <summary>Grip multiplier for a boat swamped by a blasted wake (design: grip -60%).</summary>
+        public const float SwampedGripScale = 0.4f;
+
         public int Tick => State.Tick;
         public float RaceTime => State.Tick * BoatSimulator.TickDelta;
 
@@ -80,10 +86,12 @@ namespace Downstream.Core.Sim
             LastEvents = new BoatEvents[BoatCount];
             Modifiers = new BoatModifiers[BoatCount];
             Parked = new bool[BoatCount];
+            WakeScale = new float[BoatCount];
             _order = new int[BoatCount];
             for (int i = 0; i < BoatCount; i++)
             {
                 Modifiers[i] = BoatModifiers.None;
+                WakeScale[i] = 1f;
                 State.Progress[i] = track.Project(State.Boats[i].Position, ref State.TrackHints[i], track.PointCount);
                 _order[i] = i;
             }
@@ -175,7 +183,7 @@ namespace Downstream.Core.Sim
             for (int i = 0; i < BoatCount; i++)
             {
                 ref var me = ref State.Boats[i];
-                bool slot = false, edge = false;
+                bool slot = false, edge = false, swamped = false;
                 for (int j = 0; j < BoatCount && !Parked[i]; j++)
                 {
                     if (j == i || Parked[j]) continue;
@@ -184,9 +192,14 @@ namespace Downstream.Core.Sim
                     var rf = rival.FlatForward;
                     var d = (me.Position - rival.Position).Flat;
                     float behind = -SimVec3.Dot(d, rf);
-                    if (behind < WakeSlotMinDistance || behind > WakeSlotMaxDistance) continue;
+                    float scale = WakeScale[j] > 1f ? WakeScale[j] : 1f;
+                    if (behind < WakeSlotMinDistance || behind > WakeSlotMaxDistance * scale) continue;
                     float lateral = SimMath.Abs(SimVec3.Dot(d, rival.FlatRight));
-                    if (lateral <= WakeSlotHalfWidth)
+                    if (scale > 1f)
+                    {
+                        if (lateral <= WakeEdgeHalfWidth * scale) swamped = true;
+                    }
+                    else if (lateral <= WakeSlotHalfWidth)
                     {
                         if (me.InCurrentLane && rival.InCurrentLane) slot = true;
                     }
@@ -196,9 +209,9 @@ namespace Downstream.Core.Sim
                     }
                 }
                 var m = Modifiers[i];
-                m.InWakeSlot = slot;
-                m.OnWakeEdge = edge && !slot;
-                m.GripScale = m.OnWakeEdge ? Tunings[i].WakeEdgeGripFactor : 1f;
+                m.InWakeSlot = slot && !swamped;
+                m.OnWakeEdge = (edge && !slot) || swamped;
+                m.GripScale = swamped ? SwampedGripScale : m.OnWakeEdge ? Tunings[i].WakeEdgeGripFactor : 1f;
                 Modifiers[i] = m;
             }
         }

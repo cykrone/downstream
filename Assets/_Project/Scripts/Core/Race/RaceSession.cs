@@ -1,5 +1,6 @@
 using System;
 using Downstream.Core.Boat;
+using Downstream.Core.Items;
 using Downstream.Core.Math;
 using Downstream.Core.Sim;
 using Downstream.Core.Water;
@@ -116,6 +117,9 @@ namespace Downstream.Core.Race
         public BoatRaceStatus[] Status { get; }
         public RaceEvents[] LastEvents { get; }
 
+        /// <summary>Items for this race, or null for a race without them.</summary>
+        public ItemSystem Items { get; set; }
+
         /// <summary>Ticks spent on the grid before the start; the race clock starts at zero on "Go".</summary>
         public int CountdownTicks { get; }
         public int FinishTimeoutTicks { get; }
@@ -171,6 +175,7 @@ namespace Downstream.Core.Race
                 _inputs[i] = Phase == RacePhase.Countdown || Status[i].IsRespawning ? default : inputs[i];
             }
 
+            Items?.PreStep(this);
             Sim.Step(_inputs);
 
             if (Phase == RacePhase.Countdown)
@@ -188,6 +193,7 @@ namespace Downstream.Core.Race
                     Phase = RacePhase.Racing;
                     for (int i = 0; i < n; i++) LastEvents[i] |= RaceEvents.Go;
                 }
+                Items?.PostStep(this, inputs);
                 return;
             }
 
@@ -219,6 +225,7 @@ namespace Downstream.Core.Race
             }
 
             UpdatePlaces();
+            Items?.PostStep(this, inputs);
 
             if (Phase == RacePhase.Racing &&
                 (_finishedCount == n || (FirstFinishTick >= 0 && Sim.Tick - FirstFinishTick >= FinishTimeoutTicks)))

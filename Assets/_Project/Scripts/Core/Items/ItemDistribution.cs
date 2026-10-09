@@ -20,6 +20,14 @@ namespace Downstream.Core.Items
         DamBurst,
     }
 
+    /// <summary>Which items a race hands out (design: Standard, Skill = attacks only, no boosts, None = pure racing).</summary>
+    public enum ItemRuleset : byte
+    {
+        Standard,
+        Skill,
+        None,
+    }
+
     /// <summary>
     /// The design doc's position-weighted item table (8 boats, Standard ruleset). Leaders get
     /// defence, the middle gets attacks, the back gets speed. Values are percentages per pickup
@@ -79,18 +87,35 @@ namespace Downstream.Core.Items
             return sum;
         }
 
+        /// <summary>True for items that only make the user (or trailing boats) faster.</summary>
+        public static bool IsBoost(ItemType item) =>
+            item == ItemType.TurbineX1 || item == ItemType.TurbineX3 || item == ItemType.Surge || item == ItemType.DamBurst;
+
+        public static bool Allowed(ItemType item, ItemRuleset ruleset) =>
+            ruleset == ItemRuleset.Standard || (ruleset == ItemRuleset.Skill && !IsBoost(item));
+
         /// <summary>Draws an item for a boat in <paramref name="place"/> using the race's seeded generator.</summary>
-        public static ItemType Roll(int place, ref SimRandom rng)
+        public static ItemType Roll(int place, ref SimRandom rng) => Roll(place, ref rng, ItemRuleset.Standard);
+
+        /// <summary>
+        /// Draws an item allowed by <paramref name="ruleset"/>, keeping the band's relative weights.
+        /// Returns <see cref="ItemType.None"/> if the ruleset allows nothing for this place.
+        /// </summary>
+        public static ItemType Roll(int place, ref SimRandom rng, ItemRuleset ruleset)
         {
             int band = BandForPlace(place);
-            int total = BandTotal(band);
+            int total = 0;
+            for (int r = 0; r < Items.Length; r++)
+                if (Allowed(Items[r], ruleset)) total += Weights[r, band];
+            if (total <= 0) return ItemType.None;
             int pick = rng.NextInt(total);
             for (int r = 0; r < Items.Length; r++)
             {
+                if (!Allowed(Items[r], ruleset)) continue;
                 pick -= Weights[r, band];
                 if (pick < 0) return Items[r];
             }
-            return Items[Items.Length - 1];
+            return ItemType.None;
         }
     }
 }
