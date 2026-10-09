@@ -29,9 +29,10 @@ and online.
 4. Run **Downstream > Create Greybox Race Scene**. It creates and assigns a URP asset if the project
    has none, a 1.5 km test river with a 6 m falls and a flood pulse, a boat and a chase camera, and
    saves `Assets/_Project/Scenes/GreyboxRace.unity`.
-5. Press Play. The keyboard and the first gamepad drive boat 1 (RT/W throttle, LT/S brake, stick or
-   A/D steer, RB/Space hop and drift); each further connected gamepad adds a split-screen player.
-   The other boats are AI.
+5. Press Play. After a 3 s countdown, the keyboard and the first gamepad drive boat 1 (RT/W throttle,
+   LT/S brake, stick or A/D steer, RB/Space hop and drift, LB/E item: tap to use, hold to trail it
+   behind as a shield); each further connected gamepad adds a split-screen player. The other boats
+   are AI. Drive through the yellow buoys for items. At the results, Enter or A rematches.
 6. Optional: `Tools/setup-unityyamlmerge.sh <path to UnityYAMLMerge>` to merge scenes and prefabs.
 
 ## Layout
@@ -59,6 +60,9 @@ They encode the design doc's acceptance criteria where a machine can check them:
 within 0.4 s after a 6 m drop, current lanes add 15% ±1%, the wake slot adds 8%, drift tiers fire
 within one tick of 0.7 / 1.4 / 2.2 s, the landing rule, no capsizing under random input, spin-out
 and immunity timings, item tables summing to 100%, deterministic replays and own-boat reconciliation.
+They also cover the river features
+(eddy pivots, holes, crests, wake edges, bumps), the race loop (countdown, finish, respawns, cup
+points) and every item rule, and race 8 AI boats headless down a greybox river.
 
 CI runs these on every push (`.github/workflows/core-tests.yml`). The Unity EditMode run
 (`.github/workflows/unity.yml`) starts once `UNITY_LICENSE`, `UNITY_EMAIL` and `UNITY_PASSWORD`

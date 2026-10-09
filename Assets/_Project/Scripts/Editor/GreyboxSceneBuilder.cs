@@ -1,7 +1,9 @@
 using Downstream.Boat;
 using Downstream.Cameras;
 using Downstream.Input;
+using Downstream.Items;
 using Downstream.Race;
+using Downstream.UI;
 using Downstream.Water;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -58,14 +60,24 @@ namespace Downstream.Editor
             gizmos.FindProperty("_river").objectReferenceValue = river;
             gizmos.ApplyModifiedPropertiesWithoutUndo();
 
-            var director = new GameObject("Race Director", typeof(LocalPlayerJoin), typeof(RaceDirector));
+            var itemMat = LoadOrCreateMaterial(TrackDir + "/GreyboxItem.mat", litShader, Color.white);
+            var itemView = new GameObject("Items", typeof(ItemWorldView));
+            var itemSo = new SerializedObject(itemView.GetComponent<ItemWorldView>());
+            itemSo.FindProperty("_material").objectReferenceValue = itemMat;
+            itemSo.ApplyModifiedPropertiesWithoutUndo();
+
+            var director = new GameObject("Race Director", typeof(LocalPlayerJoin), typeof(RaceDirector), typeof(GreyboxRaceHud));
             var so = new SerializedObject(director.GetComponent<RaceDirector>());
             so.FindProperty("_river").objectReferenceValue = river;
             so.FindProperty("_boatPrefab").objectReferenceValue = boatPrefab;
             so.FindProperty("_cameraPrefab").objectReferenceValue = cameraPrefab;
             so.FindProperty("_waterMesh").objectReferenceValue = waterMesh;
             so.FindProperty("_players").objectReferenceValue = director.GetComponent<LocalPlayerJoin>();
+            so.FindProperty("_itemView").objectReferenceValue = itemView.GetComponent<ItemWorldView>();
             so.ApplyModifiedPropertiesWithoutUndo();
+            var hudSo = new SerializedObject(director.GetComponent<GreyboxRaceHud>());
+            hudSo.FindProperty("_director").objectReferenceValue = director.GetComponent<RaceDirector>();
+            hudSo.ApplyModifiedPropertiesWithoutUndo();
 
             string scenePath = SceneDir + "/GreyboxRace.unity";
             EditorSceneManager.SaveScene(scene, scenePath);

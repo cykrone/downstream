@@ -37,7 +37,18 @@ namespace Downstream.Water
 
         private void Reset() => ApplyGreyboxDefaults();
 
-        /// <summary>A 1.5 km test river with a 6 m falls and floodable banks.</summary>
+        /// <summary>World position of a boulder's centre on the water surface.</summary>
+        public Vector3 BoulderPosition(in RiverBoulder b)
+        {
+            float d = b.Distance;
+            float cx = ProceduralRiver.CentreX(_greybox, d);
+            // The builder measures across the channel as (x - centre) * tangentZ, so undo that here.
+            float slope = (ProceduralRiver.CentreX(_greybox, d + 0.5f) - ProceduralRiver.CentreX(_greybox, d - 0.5f));
+            float tZ = 1f / Mathf.Sqrt(1f + slope * slope);
+            return new Vector3(cx + b.Lateral / tZ, ProceduralRiver.SurfaceAt(_greybox, d), d);
+        }
+
+        /// <summary>A 1.5 km test river with a 6 m falls, floodable banks, two eddy rocks, a ledge hole and a wave train.</summary>
         public void ApplyGreyboxDefaults()
         {
             _layers = new WaterLayers
@@ -50,6 +61,14 @@ namespace Downstream.Water
             _greybox.WaterfallDistance = 700f;
             _greybox.WaterfallDrop = 6f;
             _greybox.FloodableBank = 12f;
+            _greybox.Boulders = new[]
+            {
+                new RiverBoulder { Distance = 220f, Lateral = 6f, Radius = 2f, EddyLength = 12f, EddyFlow = 1.5f },
+                new RiverBoulder { Distance = 1150f, Lateral = -7f, Radius = 2.5f, EddyLength = 14f, EddyFlow = 1.5f },
+            };
+            // The hole sits on river left; the tongue down the right is the clean line.
+            _greybox.Ledges = new[] { new RiverLedge { Distance = 450f, Drop = 0.4f, HoleLength = 4f, Lateral = -8f, Width = 10f } };
+            _greybox.WaveTrains = new[] { new StandingWaveTrain { Distance = 950f, Count = 5, Wavelength = 12f, Height = 0.7f } };
         }
     }
 }

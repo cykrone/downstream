@@ -47,6 +47,20 @@ namespace Downstream.Water
                     if (material != null) wall.GetComponent<MeshRenderer>().sharedMaterial = material;
                 }
             }
+
+            // Boulders: a rock pillar each, with a collider so boats glance off them.
+            var boulders = g.Boulders;
+            if (boulders == null) return;
+            for (int i = 0; i < boulders.Length; i++)
+            {
+                var rock = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                rock.name = $"Boulder {i}";
+                rock.transform.SetParent(root, false);
+                float d = boulders[i].Radius * 2f;
+                rock.transform.position = river.BoulderPosition(boulders[i]) + Vector3.up * 0.5f;
+                rock.transform.localScale = new Vector3(d, 1.5f, d);
+                if (material != null) rock.GetComponent<MeshRenderer>().sharedMaterial = material;
+            }
         }
 
         public void Build(RiverWater water)
@@ -72,6 +86,10 @@ namespace Downstream.Water
                 float speed = Mathf.Clamp01(s.Flow.Magnitude / _maxFlowForColour);
                 var c = Color.Lerp(new Color(0.12f, 0.35f, 0.45f), new Color(0.75f, 0.92f, 0.95f), speed);
                 if ((s.Features & WaterFeature.CurrentLane) != 0) c = Color.Lerp(c, new Color(0.95f, 0.98f, 1f), 0.35f);
+                // Greybox stand-ins for the readability grammar: eddy seams dark, hole boils white, crest faces pale green.
+                if ((s.Features & WaterFeature.Eddy) != 0) c = new Color(0.05f, 0.22f, 0.3f);
+                if ((s.Features & WaterFeature.HydraulicHole) != 0) c = new Color(0.97f, 0.97f, 0.97f);
+                if ((s.Features & WaterFeature.Crest) != 0) c = Color.Lerp(c, new Color(0.7f, 1f, 0.85f), 0.5f);
                 colours[i] = c;
             }
 

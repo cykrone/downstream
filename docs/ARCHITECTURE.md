@@ -36,9 +36,34 @@ shallow-water solve, hand combing) exists.
 both produce `BoatInput`, so AI can never do what a controller cannot. `LocalPlayerJoin` pairs each
 device to its own copy of the actions for split-screen; `SplitScreenLayout` gives the viewports.
 
+## River features
+
+The River Field's feature mask drives the water mechanics in `BoatSimulator.Step`, so the same flag
+the shader draws is the one that moves the boat:
+
+- **Eddy**: upstream flow plus a turn-rate multiplier, for the 120 degree pivot.
+- **Hydraulic hole**: holds the hull for up to 1.5 s (a hop breaks out; boofing the ledge clears it).
+- **Crest**: the downslope face holds speed without throttle and launches hops higher.
+- **Current lane**: faster flow, faster drift charge, and the wake slot that drafting needs.
+
+Wakes and bumps are boat-to-boat, so they live in `RaceSimulation`: wake slot and rough edges,
+then capsule contacts with mass from the Weight stat.
+
+## Race and items
+
+`RaceSession` wraps the sim with the race flow (grid countdown, finish, places, respawns, results);
+`CupStandings` scores cups. `ItemSystem` is host-authoritative state stepped by the session: buoys,
+two item slots per boat, and a fixed array of world objects (mines and logs advected by the field,
+surface-following pikes, thrown items, whirlpools, Kingfisher timers). `ItemAI` presses the item
+button like a player would.
+
+On the Unity side `RaceDirector` owns the session, `ItemWorldView` draws items as greybox primitives,
+and `GreyboxRaceHud` is an IMGUI stand-in for the UI Toolkit HUD.
+
 ## What is next
 
 1. Handling prototype and the month-4 fun gate: tune `BoatTuning` with playtesters.
 2. Month-1 split-screen performance spike on a GTX 1660 Super (4 URP cameras).
 3. River Field baker and the flow-mapped water shader.
-4. Items, then the netcode spike (Steam relay, snapshots, reconciliation).
+4. Racing lines, AI difficulty levels and the seeded mistake budget.
+5. The netcode spike (Steam relay, snapshots, reconciliation), including item events.
