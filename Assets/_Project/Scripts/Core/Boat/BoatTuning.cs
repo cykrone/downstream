@@ -77,6 +77,17 @@ namespace Downstream.Core.Boat
         // Shallows.
         public float ShallowDrag;
 
+        // River features (design: eddy pivot of 120 degrees in 1.0 s or less on Rapid; holes grab for up to 1.5 s).
+        public float EddyTurnScale;
+        public float HoleGrip;
+        public float HoleMaxHold;
+        public float CrestHopScale;
+        public float WakeEdgeGripFactor;
+
+        // Boat-to-boat contact. Mass comes from the Weight stat, so a Tug shoves a Skiff.
+        public float Mass;
+        public float BumpRestitution;
+
         public static BoatTuning Create(HullStats hull, SpeedClass speedClass)
         {
             SpeedClasses.TopSpeeds(speedClass, out float top, out float boostTop);
@@ -138,6 +149,15 @@ namespace Downstream.Core.Boat
                 HitImmunity = 1.5f,
 
                 ShallowDrag = 3f,
+
+                EddyTurnScale = 1.7f,
+                HoleGrip = 14f,
+                HoleMaxHold = 1.5f,
+                CrestHopScale = 1.8f,
+                WakeEdgeGripFactor = 0.4f,
+
+                Mass = 1f + 0.3f * (hull.Weight - 1),
+                BumpRestitution = 0.35f,
             };
         }
     }

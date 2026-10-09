@@ -13,7 +13,7 @@ namespace Downstream.Core.Boat
 
     /// <summary>Things that happened during one tick, for audio, VFX, HUD and telemetry. Never fed back into the sim.</summary>
     [Flags]
-    public enum BoatEvents : ushort
+    public enum BoatEvents : uint
     {
         None = 0,
         Hopped = 1 << 0,
@@ -27,6 +27,11 @@ namespace Downstream.Core.Boat
         BoostStarted = 1 << 8,
         SpinOutStarted = 1 << 9,
         Grounding = 1 << 10,
+        HoleGrabbed = 1 << 11,
+        HoleReleased = 1 << 12,
+        WakeEdge = 1 << 13,
+        BoatBump = 1 << 14,
+        EnteredEddy = 1 << 15,
     }
 
     /// <summary>
@@ -70,8 +75,18 @@ namespace Downstream.Core.Boat
         public bool PrevHopDrift;
         public LandingResult LastLanding;
 
+        /// <summary>True while any wet pontoon is in an eddy (pivot assist active).</summary>
+        public bool InEddy;
+        /// <summary>True while any wet pontoon is on a crest's downslope face (surfing).</summary>
+        public bool OnCrest;
+        /// <summary>Seconds the current hydraulic hole has held the boat.</summary>
+        public float HoleTime;
+        /// <summary>Set once a hole has let go (time up or hopped out); cleared when the hull is clear of every hole.</summary>
+        public bool HoleSpent;
+
         public bool IsDrifting => DriftDirection != 0;
         public bool IsSpinning => SpinTime > 0f;
+        public bool InHole => HoleTime > 0f && !HoleSpent;
 
         public SimVec3 Forward => BoatFrame.Rotate(Yaw, Pitch, Roll, SimVec3.Forward);
         public SimVec3 Up => BoatFrame.Rotate(Yaw, Pitch, Roll, SimVec3.Up);

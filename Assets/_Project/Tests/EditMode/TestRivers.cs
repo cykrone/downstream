@@ -36,6 +36,22 @@ namespace Downstream.Core.Tests
             return new RiverWater(field);
         }
 
+        /// <summary>Marks every wet texel with a feature and, when <paramref name="flowZ"/> is non-zero, sets that flow.</summary>
+        public static RiverWater Paint(RiverWater water, WaterFeature feature, float flowZ)
+        {
+            var field = water.Field;
+            for (int iz = 0; iz < field.TexelCountZ; iz++)
+            for (int ix = 0; ix < field.TexelCountX; ix++)
+            {
+                field.TexelCentre(ix, iz, out float x, out float z);
+                var st = field.SampleStatic(x, z);
+                if (!st.HasData || st.BedHeight > st.SurfaceHeight) continue;
+                float fz = flowZ != 0f ? flowZ : st.FlowZ;
+                field.SetTexel(ix, iz, st.SurfaceHeight, st.BedHeight, flowZ != 0f ? 0f : st.FlowX, fz, st.RiverDistance, st.Features | feature);
+            }
+            return water;
+        }
+
         public static BoatTuning Runabout(SpeedClass c = SpeedClass.Rapid) => BoatTuning.Create(HullStats.For(HullType.Runabout), c);
 
         /// <summary>Runs ticks with a constant input and returns the final state.</summary>

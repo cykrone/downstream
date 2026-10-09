@@ -3,6 +3,44 @@ using Downstream.Core.Math;
 
 namespace Downstream.Core.Water
 {
+    /// <summary>A rock in the channel with an eddy circling upstream in its lee.</summary>
+    [Serializable]
+    public struct RiverBoulder
+    {
+        /// <summary>Position along the river, metres.</summary>
+        public float Distance;
+        /// <summary>Signed offset from the centreline, metres (positive = river right looking downstream).</summary>
+        public float Lateral;
+        public float Radius;
+        /// <summary>Length of the eddy behind the rock, metres.</summary>
+        public float EddyLength;
+        /// <summary>Speed of the upstream eddy current, m/s.</summary>
+        public float EddyFlow;
+    }
+
+    /// <summary>A ledge: the surface steps down and a hydraulic hole (white boil) recirculates below it.</summary>
+    [Serializable]
+    public struct RiverLedge
+    {
+        public float Distance;
+        public float Drop;
+        public float HoleLength;
+        /// <summary>Centre of the hole across the river, metres from the centreline.</summary>
+        public float Lateral;
+        /// <summary>Width of the hole; the rest of the ledge is a clean tongue.</summary>
+        public float Width;
+    }
+
+    /// <summary>A train of standing waves in a rapid. Their downslope faces are surfable crests.</summary>
+    [Serializable]
+    public struct StandingWaveTrain
+    {
+        public float Distance;
+        public int Count;
+        public float Wavelength;
+        public float Height;
+    }
+
     /// <summary>Settings for a procedurally generated greybox river.</summary>
     [Serializable]
     public struct ProceduralRiverSettings
@@ -24,6 +62,10 @@ namespace Downstream.Core.Water
         public float WaterfallDrop;
         /// <summary>Width of floodable bank on each side, metres (sits 0.5 m above the surface).</summary>
         public float FloodableBank;
+
+        public RiverBoulder[] Boulders;
+        public RiverLedge[] Ledges;
+        public StandingWaveTrain[] WaveTrains;
 
         public static ProceduralRiverSettings Default => new ProceduralRiverSettings
         {
@@ -56,7 +98,38 @@ namespace Downstream.Core.Water
         {
             float h = -s.Gradient * distance;
             if (s.WaterfallDistance >= 0f && distance > s.WaterfallDistance) h -= s.WaterfallDrop;
+            if (s.Ledges != null)
+                for (int i = 0; i < s.Ledges.Length; i++)
+                    if (distance > s.Ledges[i].Distance) h -= s.Ledges[i].Drop;
+            if (s.WaveTrains != null)
+                for (int i = 0; i < s.WaveTrains.Length; i++)
+                {
+                    float u = WaveTrainPhase(s.WaveTrains[i], distance);
+                    if (u >= 0f) h += s.WaveTrains[i].Height * 0.5f * (1f - SimMath.Cos(2f * SimMath.Pi * u));
+                }
             return h;
+        }
+
+        /// <summary>Position inside a wave train in wavelengths (0..Count), or -1 outside it.</summary>
+        private static float WaveTrainPhase(in StandingWaveTrain w, float distance)
+        {
+            if (w.Wavelength <= 0f || w.Count <= 0) return -1f;
+            float u = (distance - w.Distance) / w.Wavelength;
+            return u < 0f || u > w.Count ? -1f : u;
+        }
+
+        /// <summary>True where the surface falls away downstream inside a wave train: the face a boat surfs.</summary>
+        private static bool OnCrestFace(in ProceduralRiverSettings s, float distance)
+        {
+            if (s.WaveTrains == null) return false;
+            for (int i = 0; i < s.WaveTrains.Length; i++)
+            {
+                float u = WaveTrainPhase(s.WaveTrains[i], distance);
+                if (u < 0f) continue;
+                float frac = u - SimMath.FloorToInt(u);
+                if (frac > 0.5f) return true;
+            }
+            return false;
         }
 
         public static RiverField Build(ProceduralRiverSettings s, float cellSize = RiverField.DefaultCellSize)
@@ -112,6 +185,26 @@ namespace Downstream.Core.Water
                         }
                         if (s.WaterfallDistance >= 0f && SimMath.Abs(distance - s.WaterfallDistance) < 1.5f)
                             features |= WaterFeature.WaterfallLip;
+                        if (OnCrestFace(s, distance))
+                            features |= WaterFeature.Crest;
+                        if (InHole(s, distance, lateral))
+                        {
+                            features |= WaterFeature.HydraulicHole;
+                            flow *= 0.2f;
+                        }
+                        int rock = BoulderAt(s, distance, lateral, out bool eddy);
+                        if (rock >= 0 && !eddy)
+                        {
+                            // Dry rock: the bed stands above the surface, so it reads as land to every query.
+                            bed = surface + 1f;
+                            flow = 0f;
+                            features = WaterFeature.None;
+                        }
+                        else if (rock >= 0)
+                        {
+                            flow = -s.Boulders[rock].EddyFlow;
+                            features = (features & ~WaterFeature.CurrentLane) | WaterFeature.Eddy;
+                        }
                     }
                     else
                     {
@@ -123,6 +216,37 @@ namespace Downstream.Core.Water
                 }
             }
             return field;
+        }
+
+        private static bool InHole(in ProceduralRiverSettings s, float distance, float lateral)
+        {
+            if (s.Ledges == null) return false;
+            for (int i = 0; i < s.Ledges.Length; i++)
+            {
+                var l = s.Ledges[i];
+                if (distance > l.Distance && distance <= l.Distance + l.HoleLength && SimMath.Abs(lateral - l.Lateral) <= l.Width * 0.5f)
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>Index of the boulder whose rock or eddy covers this point, or -1. <paramref name="eddy"/> is false on the rock itself.</summary>
+        private static int BoulderAt(in ProceduralRiverSettings s, float distance, float lateral, out bool eddy)
+        {
+            eddy = false;
+            if (s.Boulders == null) return -1;
+            for (int i = 0; i < s.Boulders.Length; i++)
+            {
+                var b = s.Boulders[i];
+                float dd = distance - b.Distance, dl = lateral - b.Lateral;
+                if (dd * dd + dl * dl <= b.Radius * b.Radius) return i;
+                if (dd > 0f && dd <= b.Radius + b.EddyLength && SimMath.Abs(dl) <= b.Radius * 1.2f)
+                {
+                    eddy = true;
+                    return i;
+                }
+            }
+            return -1;
         }
     }
 }

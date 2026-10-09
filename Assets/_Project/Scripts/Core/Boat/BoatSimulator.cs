@@ -12,7 +12,13 @@ namespace Downstream.Core.Boat
         /// <summary>Multiplier on the current felt by this boat (Dam Burst: 1.2 for places 5-8).</summary>
         public float FlowMultiplier;
 
-        public static BoatModifiers None => new BoatModifiers { FlowMultiplier = 1f };
+        /// <summary>True while clipping the rough edge of a rival's wake (design: grip loss within 0.1 s).</summary>
+        public bool OnWakeEdge;
+
+        /// <summary>Multiplier on sideways grip from wakes (wake edge, or a Wake Blaster swamping the slot). 0 means 1.</summary>
+        public float GripScale;
+
+        public static BoatModifiers None => new BoatModifiers { FlowMultiplier = 1f, GripScale = 1f };
     }
 
     /// <summary>
@@ -68,7 +74,8 @@ namespace Downstream.Core.Boat
             int wetCount = 0;
             SimVec3 flowSum = SimVec3.Zero, normalSum = SimVec3.Zero;
             float depthSum = 0f;
-            bool inLane = false;
+            bool inLane = false, inEddy = false, onCrest = false;
+            int holeCount = 0;
             float pitchRateEff = s.PitchRate, rollRateEff = s.RollRate;
             for (int i = 0; i < PontoonCount; i++)
             {
@@ -85,6 +92,9 @@ namespace Downstream.Core.Boat
                 normalSum += w.Normal;
                 depthSum += w.Depth;
                 if ((w.Features & WaterFeature.CurrentLane) != 0) inLane = true;
+                if ((w.Features & WaterFeature.Eddy) != 0) inEddy = true;
+                if ((w.Features & WaterFeature.Crest) != 0) onCrest = true;
+                if ((w.Features & WaterFeature.HydraulicHole) != 0) holeCount++;
 
                 float d = SimMath.Min(submersion, t.MaxSubmersion);
                 // Vertical speed of this pontoon from linear and angular motion (small-angle).
@@ -154,6 +164,31 @@ namespace Downstream.Core.Boat
                 s.ImmunityTime = SimMath.Max(0f, s.ImmunityTime - dt);
             }
 
+            // ---- Hydraulic hole: grabs the boat for up to HoleMaxHold, a hop breaks out early -------
+            // The clock runs from the grab while any part of the hull is still in the boil, so
+            // rocking at the hole's edge never extends the hold past HoleMaxHold.
+            bool held = false;
+            if (holeCount == 0)
+            {
+                s.HoleTime = 0f;
+                s.HoleSpent = false;
+            }
+            else if (!s.HoleSpent && (s.HoleTime > 0f || holeCount * 2 >= PontoonCount))
+            {
+                if (s.HoleTime <= 0f) events |= BoatEvents.HoleGrabbed;
+                s.HoleTime += dt;
+                held = holeCount * 2 >= PontoonCount;
+                if (s.HoleTime >= t.HoleMaxHold - 1e-4f || (hopPressed && held))
+                {
+                    s.HoleSpent = true;
+                    held = false;
+                    events |= BoatEvents.HoleReleased;
+                }
+            }
+
+            if (inEddy && !s.InEddy) events |= BoatEvents.EnteredEddy;
+            if (mods.OnWakeEdge && wet) events |= BoatEvents.WakeEdge;
+
             // ---- Hop and drift -------------------------------------------------------------------
             if (s.HopTime > 0f)
             {
@@ -163,7 +198,9 @@ namespace Downstream.Core.Boat
             if (hopPressed && wet && s.DryTime < HopIgnoreAirSeconds)
             {
                 s.HopTime = dt;
-                s.Velocity = new SimVec3(s.Velocity.X, SimMath.Max(s.Velocity.Y, 0f) + t.HopSpeed, s.Velocity.Z);
+                // Hopping off a crest launches higher: air, a trick and a landing boost.
+                float hop = onCrest ? t.HopSpeed * t.CrestHopScale : t.HopSpeed;
+                s.Velocity = new SimVec3(s.Velocity.X, SimMath.Max(s.Velocity.Y, 0f) + hop, s.Velocity.Z);
                 events |= BoatEvents.Hopped;
             }
 
@@ -243,6 +280,7 @@ namespace Downstream.Core.Boat
                 float rate;
                 if (boosting) rate = t.BoostAccelRate;
                 else if (vf < target) rate = t.AccelRate;
+                else if (onCrest && input.Throttle >= 0f) rate = 0f; // surfing the face holds speed without throttle
                 else rate = input.Throttle < 0f ? t.BrakeRate : t.CoastRate;
                 float af = (target - vf) * rate;
 
@@ -253,9 +291,17 @@ namespace Downstream.Core.Boat
                 }
 
                 float grip = s.DriftDirection != 0 || spinning ? t.DriftGrip : t.KeelGrip;
+                if (mods.GripScale > 0f) grip *= mods.GripScale;
                 float al = -vl * grip * t.GripRate;
 
                 accel += (fwd * af + right * al) * wetFraction;
+
+                if (held)
+                {
+                    // The recirculation stalls the hull in place: no thrust, ground speed pulled to zero.
+                    var ground = s.Velocity.Flat;
+                    accel = ground * -t.HoleGrip;
+                }
 
                 // Gravity pulls boats down sloped water (rapids, the face of a standing wave).
                 accel += new SimVec3(waterNormal.X, 0f, waterNormal.Z) * (t.Gravity * t.SlopeAssist);
@@ -280,6 +326,7 @@ namespace Downstream.Core.Boat
                 else
                     targetYawRate = input.Steer * t.TurnRate * speedFactor * (vf < 0f ? -1f : 1f);
                 if (!wet) targetYawRate *= t.AirSteerFactor;
+                else if (inEddy) targetYawRate *= t.EddyTurnScale; // the eddy line swings the hull round
                 s.YawRate = SimMath.MoveTowards(s.YawRate, targetYawRate, t.YawResponse * t.TurnRate * dt);
             }
 
@@ -314,6 +361,8 @@ namespace Downstream.Core.Boat
 
             s.WetFraction = wetFraction;
             s.InCurrentLane = inLane;
+            s.InEddy = inEddy && wet;
+            s.OnCrest = onCrest && wet;
             s.PrevHopDrift = rawInput.HopDrift;
             return events;
         }
