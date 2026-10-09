@@ -30,6 +30,11 @@ namespace Downstream.Editor
         [MenuItem("Downstream/Create Greybox Race Scene")]
         public static void CreateGreyboxScene()
         {
+            // Open the empty scene first: NewScene(Single) unloads every asset nothing references yet,
+            // which turns assets loaded or created before it (the river, the prefab components) into
+            // dead references that serialize as None.
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
             EnsureFolders();
             EnsureUrp();
 
@@ -42,8 +47,6 @@ namespace Downstream.Editor
 
             var boatPrefab = CreateBoatPrefab(hullMat);
             var cameraPrefab = CreateCameraPrefab();
-
-            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             var sun = new GameObject("Sun").AddComponent<Light>();
             sun.type = LightType.Directional;
@@ -75,6 +78,12 @@ namespace Downstream.Editor
             so.FindProperty("_players").objectReferenceValue = director.GetComponent<LocalPlayerJoin>();
             so.FindProperty("_itemView").objectReferenceValue = itemView.GetComponent<ItemWorldView>();
             so.ApplyModifiedPropertiesWithoutUndo();
+            so.Update();
+            foreach (var field in new[] { "_river", "_boatPrefab", "_cameraPrefab" })
+            {
+                if (so.FindProperty(field).objectReferenceValue == null)
+                    Debug.LogError($"[Downstream] Race Director lost its {field} reference; the race will not start.", director);
+            }
             var hudSo = new SerializedObject(director.GetComponent<GreyboxRaceHud>());
             hudSo.FindProperty("_director").objectReferenceValue = director.GetComponent<RaceDirector>();
             hudSo.ApplyModifiedPropertiesWithoutUndo();
