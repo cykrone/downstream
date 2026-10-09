@@ -10,12 +10,15 @@ namespace Downstream.Water
     /// </summary>
     public static class WaterTextures
     {
-        private static Texture2D _ripple, _foam, _pebbles, _soft;
+        private static Texture2D _ripple, _foam, _pebbles, _soft, _sprite, _wake, _swirl;
 
         public static Texture2D Ripple => _ripple != null ? _ripple : (_ripple = RippleNormals(256));
         public static Texture2D Foam => _foam != null ? _foam : (_foam = FoamStrokes(256));
         public static Texture2D Pebbles => _pebbles != null ? _pebbles : (_pebbles = PebbleAlbedo(256));
         public static Texture2D SoftNoise => _soft != null ? _soft : (_soft = SoftNoiseTexture(256));
+        public static Texture2D SoftSprite => _sprite != null ? _sprite : (_sprite = SoftSpriteTexture(96));
+        public static Texture2D WakeBand => _wake != null ? _wake : (_wake = WakeBandTexture(128));
+        public static Texture2D Swirl => _swirl != null ? _swirl : (_swirl = SwirlTexture(128));
 
         /// <summary>Tangent-space ripple normals (xy in RG), small capillary waves over longer swells.</summary>
         public static Texture2D RippleNormals(int size)
@@ -104,6 +107,72 @@ namespace Downstream.Water
         }
 
         /// <summary>Soft, tileable mottling in R (0..1) for breaking up flat grass and ground colours.</summary>
+        /// <summary>Spiral foam arms on a clear disc: the whirlpool, spun by rotating the mesh.</summary>
+        public static Texture2D SwirlTexture(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, false) { name = "Swirl", wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var px = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float u = (x + 0.5f) / size * 2f - 1f, v = (y + 0.5f) / size * 2f - 1f;
+                float r = Mathf.Sqrt(u * u + v * v);
+                float ang = Mathf.Atan2(v, u);
+                float arms = 0.5f + 0.5f * Mathf.Sin(ang * 3f + r * 11f);
+                float a = Mathf.Pow(Mathf.Clamp01(arms), 2.2f) * Mathf.Clamp01(1f - r) * Mathf.Clamp01(r * 4f);
+                a *= 0.4f + 0.6f * Mathf.Clamp01(1f - r); // denser at the eye
+                byte c = (byte)(Mathf.Clamp01(0.85f + 0.15f * a) * 255f);
+                px[y * size + x] = new Color32(c, (byte)Mathf.Min(255, c + 6), 255, (byte)(a * 255f));
+            }
+            tex.SetPixels32(px);
+            tex.Apply(true, true);
+            return tex;
+        }
+
+        /// <summary>A wake ribbon: U runs along the trail, V across it with feathered edges and streaks.</summary>
+        public static Texture2D WakeBandTexture(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, false) { name = "WakeBand", wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Trilinear };
+            var px = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float u = (x + 0.5f) / size, v = (y + 0.5f) / size * 2f - 1f;
+                float across = Mathf.Clamp01(1f - Mathf.Abs(v));
+                across = across * across * (3f - 2f * across);
+                float streak = 0.75f + 0.25f * Mathf.Sin(u * Mathf.PI * 2f * 3f + v * 9f) * Mathf.Sin(v * Mathf.PI * 4f + 0.7f);
+                float a = Mathf.Clamp01(across * streak);
+                byte c = (byte)(Mathf.Clamp01(0.92f + 0.08f * a) * 255f);
+                px[y * size + x] = new Color32(c, c, 255, (byte)(a * 255f));
+            }
+            tex.SetPixels32(px);
+            tex.Apply(true, true);
+            return tex;
+        }
+
+        /// <summary>A soft round puff with a ragged edge: one spray droplet or mist cloud.</summary>
+        public static Texture2D SoftSpriteTexture(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, false) { name = "SoftSprite", wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var px = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float u = (x + 0.5f) / size * 2f - 1f, v = (y + 0.5f) / size * 2f - 1f;
+                float r = Mathf.Sqrt(u * u + v * v);
+                float ang = Mathf.Atan2(v, u);
+                float edge = 1f + 0.05f * Mathf.Sin(ang * 4f + 1.3f) + 0.03f * Mathf.Sin(ang * 7f + 0.4f);
+                float a = Mathf.Clamp01(1f - r / (0.95f * edge));
+                a = a * a * (3f - 2f * a);
+                a = Mathf.Pow(a, 1.6f);
+                byte c = (byte)(Mathf.Clamp01(0.86f + 0.14f * a) * 255f);
+                px[y * size + x] = new Color32(c, (byte)Mathf.Min(255, c + 4), 255, (byte)(a * 255f));
+            }
+            tex.SetPixels32(px);
+            tex.Apply(true, true);
+            return tex;
+        }
+
         public static Texture2D SoftNoiseTexture(int size)
         {
             var rng = new System.Random(31);

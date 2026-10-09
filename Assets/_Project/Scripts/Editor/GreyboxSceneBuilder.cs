@@ -40,6 +40,9 @@ namespace Downstream.Editor
         private static readonly Color Sand = new Color(0.40f, 0.50f, 0.27f); // floodable meadow: darker grass, not beach
         private static readonly Color Stones = new Color(0.55f, 0.53f, 0.47f);
         private static readonly Color Tomato = new Color(0.86f, 0.27f, 0.20f);
+        private static readonly Color Cliff = new Color(0.36f, 0.37f, 0.40f);
+        private static readonly Color FogColour = new Color(0.76f, 0.84f, 0.91f); // the sky at the horizon: far land dissolves into it
+        private static readonly Color Cream = new Color(0.93f, 0.88f, 0.76f);
         private static readonly Color Sunflower = new Color(0.98f, 0.78f, 0.22f);
         private static readonly Color SkyBlue = new Color(0.35f, 0.70f, 0.95f);
 
@@ -69,19 +72,18 @@ namespace Downstream.Editor
             // Bank terrace faces read as shaded grass slopes, not an earth road; earth stays on the channel lip.
             var earthMat = EnsureMaterial(TrackDir + "/GreyboxEarth.mat", litShader, Earth, 0.15f);
             var slopeMat = EnsureMaterial(TrackDir + "/GreyboxSlope.mat", litShader, new Color(0.36f, 0.50f, 0.26f), 0.2f);
-            var rockMat = EnsureMaterial(TrackDir + "/GreyboxRock.mat", litShader, Rock, 0.2f);
+            var propShader = Shader.Find("Downstream/Greybox Prop") ?? litShader;
+            var rockMat = PropMaterial(TrackDir + "/GreyboxRock.mat", propShader, new Color(0.50f, 0.50f, 0.48f), new Color(0.68f, 0.68f, 0.64f), new Color(0.30f, 0.31f, 0.32f));
             var groundShader = Shader.Find("Downstream/Greybox Ground") ?? litShader;
             var bedMat = EnsureMaterial(TrackDir + "/GreyboxBed.mat", groundShader, Stones, 0.35f);
-            if (bedMat.HasProperty("_StoneColor")) { bedMat.SetColor("_StoneColor", Stones); bedMat.SetColor("_GrassColor", Sand); bedMat.SetColor("_SandColor", new Color(0.80f, 0.74f, 0.58f)); }
+            if (bedMat.HasProperty("_StoneColor")) { bedMat.SetColor("_StoneColor", Stones); bedMat.SetColor("_GrassColor", Sand); bedMat.SetColor("_SandColor", new Color(0.80f, 0.74f, 0.58f)); bedMat.SetColor("_EarthColor", Earth); bedMat.SetColor("_CliffColor", Cliff); }
             var waterMat = EnsureMaterial(TrackDir + "/GreyboxWater.mat", waterShader, Color.white, 0.94f);
             ConfigureWaterMaterial(waterMat);
-            var hullMat = EnsureMaterial(PrefabDir + "/GreyboxHull.mat", litShader, Tomato, 0.32f);
-            var pilotMat = EnsureMaterial(PrefabDir + "/GreyboxPilot.mat", litShader, Sunflower, 0.3f);
             var itemMat = EnsureMaterial(TrackDir + "/GreyboxItem.mat", litShader, SkyBlue, 0.35f);
             // The old greybox bank material stays on disk for anyone still referencing it.
             EnsureMaterial(TrackDir + "/GreyboxBank.mat", litShader, Grass, 0.22f);
 
-            var boatPrefab = CreateBoatPrefab(hullMat, pilotMat);
+            var boatPrefab = CreateBoatPrefab(propShader, litShader);
             var cameraPrefab = CreateCameraPrefab();
             var post = EnsurePostProfile();
             var sky = EnsureSkyMaterial();
@@ -108,6 +110,7 @@ namespace Downstream.Editor
             var itemView = new GameObject("Items", typeof(ItemWorldView));
             var itemSo = new SerializedObject(itemView.GetComponent<ItemWorldView>());
             itemSo.FindProperty("_material").objectReferenceValue = itemMat;
+            itemSo.FindProperty("_whirlMaterial").objectReferenceValue = EnsureSprayMaterial(litShader);
             itemSo.ApplyModifiedPropertiesWithoutUndo();
 
             var director = new GameObject("Race Director", typeof(LocalPlayerJoin), typeof(RaceDirector), typeof(GreyboxRaceHud));
@@ -142,7 +145,7 @@ namespace Downstream.Editor
             string dir = TrackDir + "/Dressing";
             if (!AssetDatabase.IsValidFolder(dir)) AssetDatabase.CreateFolder(TrackDir, "Dressing");
             var hills = EnsureMaterial(dir + "/Hills.mat", groundShader, Grass, 0.2f);
-            if (hills.HasProperty("_GrassColor")) { hills.SetColor("_GrassColor", new Color(0.40f, 0.54f, 0.28f)); hills.SetColor("_StoneColor", Stones); hills.SetColor("_SandColor", Sand); }
+            if (hills.HasProperty("_GrassColor")) { hills.SetColor("_GrassColor", new Color(0.40f, 0.54f, 0.28f)); hills.SetColor("_StoneColor", Stones); hills.SetColor("_SandColor", Sand); hills.SetColor("_EarthColor", Earth); hills.SetColor("_CliffColor", Cliff); }
             var propShader = Shader.Find("Downstream/Greybox Prop") ?? litShader;
             var canopies = new[]
             {
@@ -186,6 +189,7 @@ namespace Downstream.Editor
             so.FindProperty("_tent").objectReferenceValue = EnsureMaterial(dir + "/Tent.mat", litShader, Tomato, 0.25f);
             so.FindProperty("_post").objectReferenceValue = EnsureMaterial(dir + "/Post.mat", litShader, new Color(0.50f, 0.38f, 0.26f), 0.15f);
             so.FindProperty("_lantern").objectReferenceValue = lantern;
+            so.FindProperty("_spray").objectReferenceValue = EnsureSprayMaterial(litShader);
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
@@ -208,8 +212,8 @@ namespace Downstream.Editor
         {
             var sun = new GameObject("Sun").AddComponent<Light>();
             sun.type = LightType.Directional;
-            sun.color = new Color(1f, 0.92f, 0.78f);
-            sun.intensity = 1.25f;
+            sun.color = new Color(1f, 0.93f, 0.80f);
+            sun.intensity = 1.35f;
             sun.shadows = LightShadows.Soft;
             sun.shadowStrength = 0.9f; // the sky fill keeps shadows cool, never grey-black
             sun.shadowBias = 0.03f;
@@ -218,6 +222,7 @@ namespace Downstream.Editor
 
             RenderSettings.sun = sun;
             RenderSettings.skybox = sky;
+            if (sky != null && sky.HasProperty("_SunDirection")) sky.SetVector("_SunDirection", -sun.transform.forward);
             // Sky-driven fill: cool in the shadows, refreshed at runtime by the dressing (DynamicGI.UpdateEnvironment).
             RenderSettings.ambientMode = AmbientMode.Skybox;
             RenderSettings.ambientIntensity = 1.05f;
@@ -225,9 +230,9 @@ namespace Downstream.Editor
             RenderSettings.defaultReflectionResolution = 256;
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
-            RenderSettings.fogColor = new Color(0.74f, 0.82f, 0.88f);
-            RenderSettings.fogStartDistance = 80f;
-            RenderSettings.fogEndDistance = 750f;
+            RenderSettings.fogColor = FogColour;
+            RenderSettings.fogStartDistance = 110f;
+            RenderSettings.fogEndDistance = 900f;
             return sun;
         }
 
@@ -275,11 +280,11 @@ namespace Downstream.Editor
             return component;
         }
 
-        /// <summary>A scattered sky: small sun, cool tint, no gradient wash.</summary>
+        /// <summary>The painted sky: gradient bands that meet the fog colour at the horizon, a soft sun, noise clouds.</summary>
         private static Material EnsureSkyMaterial()
         {
             string path = SettingsDir + "/DownstreamSky.mat";
-            var shader = Shader.Find("Skybox/Procedural");
+            var shader = Shader.Find("Downstream/Greybox Sky") ?? Shader.Find("Skybox/Procedural");
             if (shader == null) return null;
             var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
             if (mat == null)
@@ -288,35 +293,90 @@ namespace Downstream.Editor
                 AssetDatabase.CreateAsset(mat, path);
             }
             mat.shader = shader;
-            mat.SetFloat("_SunSize", 0.035f);
-            mat.SetFloat("_SunSizeConvergence", 5f);
-            mat.SetFloat("_AtmosphereThickness", 0.85f);
-            mat.SetColor("_SkyTint", new Color(0.52f, 0.64f, 0.82f));
-            mat.SetColor("_GroundColor", new Color(0.42f, 0.50f, 0.42f));
-            mat.SetFloat("_Exposure", 1.15f);
+            if (mat.HasProperty("_ZenithColor"))
+            {
+                mat.SetColor("_ZenithColor", new Color(0.22f, 0.40f, 0.78f));
+                mat.SetColor("_HorizonColor", FogColour);
+                mat.SetColor("_GroundColor", new Color(0.68f, 0.77f, 0.86f));
+                mat.SetFloat("_HorizonPower", 3.2f);
+                mat.SetColor("_SunColor", new Color(1f, 0.95f, 0.85f));
+                mat.SetFloat("_SunSize", 1400f);
+                mat.SetFloat("_SunHalo", 0.35f);
+                mat.SetFloat("_CloudCut", 0.52f);
+                mat.SetFloat("_CloudSoft", 0.18f);
+                mat.SetFloat("_CloudScale", 0.42f);
+                mat.SetFloat("_CloudHeight", 0.14f);
+                mat.SetColor("_CloudShade", new Color(0.72f, 0.78f, 0.88f));
+                mat.SetFloat("_CloudAmount", 0.85f);
+            }
+            else
+            {
+                mat.SetFloat("_SunSize", 0.035f);
+                mat.SetFloat("_SunSizeConvergence", 5f);
+                mat.SetFloat("_AtmosphereThickness", 0.72f);
+                mat.SetColor("_SkyTint", new Color(0.50f, 0.63f, 0.84f));
+                mat.SetColor("_GroundColor", FogColour);
+                mat.SetFloat("_Exposure", 1.15f);
+            }
             EditorUtility.SetDirty(mat);
             return mat;
         }
 
-        private static BoatView CreateBoatPrefab(Material hullMat, Material pilotMat)
+        private static Material EnsureSprayMaterial(Shader fallback)
+        {
+            var shader = Shader.Find("Downstream/Greybox Spray") ?? fallback;
+            var mat = EnsureMaterial(PrefabDir + "/GreyboxSpray.mat", shader, Color.white, 0f);
+            if (mat.HasProperty("_SkyTint")) mat.SetColor("_SkyTint", new Color(0.90f, 0.95f, 1f));
+            return mat;
+        }
+
+        private static BoatView CreateBoatPrefab(Shader propShader, Shader litShader)
         {
             string path = PrefabDir + "/GreyboxBoat.prefab";
-            var hullMesh = EnsureMesh(PrefabDir + "/GreyboxHullMesh.asset", () => BlockMeshes.BevelledBox(new Vector3(2f, 0.6f, 4f), 0.12f, "GreyboxHull"));
-            var pilotMesh = EnsureMesh(PrefabDir + "/GreyboxPilotMesh.asset", () => BlockMeshes.BevelledBox(new Vector3(0.7f, 0.9f, 0.7f), 0.1f, "GreyboxPilot"));
+            var hullMat = PropMaterial(PrefabDir + "/GreyboxHull.mat", propShader, Tomato, Color.Lerp(Tomato, Color.white, 0.32f), Tomato * 0.55f);
+            var trimMat = PropMaterial(PrefabDir + "/GreyboxTrim.mat", propShader, Cream, new Color(0.99f, 0.96f, 0.88f), new Color(0.60f, 0.55f, 0.45f));
+            var skinMat = PropMaterial(PrefabDir + "/GreyboxPilot.mat", propShader, new Color(0.93f, 0.76f, 0.60f), new Color(0.98f, 0.86f, 0.72f), new Color(0.62f, 0.46f, 0.36f));
+            var paddleMat = PropMaterial(PrefabDir + "/GreyboxPaddle.mat", propShader, new Color(0.56f, 0.40f, 0.26f), new Color(0.70f, 0.54f, 0.36f), new Color(0.34f, 0.24f, 0.16f));
+            var wakeShader = Shader.Find("Downstream/Greybox Spray") ?? litShader;
+            var wakeMat = EnsureMaterial(PrefabDir + "/GreyboxWake.mat", wakeShader, new Color(1f, 1f, 1f, 0.9f), 0f);
+            var sprayMat = EnsureSprayMaterial(litShader);
+
+            var hullMesh = EnsureMesh(PrefabDir + "/GreyboxHullMesh.asset", () => BlockBoat.Hull("GreyboxHull"));
+            var deckMesh = EnsureMesh(PrefabDir + "/GreyboxDeckMesh.asset", () => BlockBoat.Deck("GreyboxDeck"));
+            var skinMesh = EnsureMesh(PrefabDir + "/GreyboxPilotMesh.asset", () => BlockBoat.PilotSkin("GreyboxPilot"));
+            var vestMesh = EnsureMesh(PrefabDir + "/GreyboxVestMesh.asset", () => BlockBoat.Vest("GreyboxVest"));
+            var helmetMesh = EnsureMesh(PrefabDir + "/GreyboxHelmetMesh.asset", () => BlockBoat.Helmet("GreyboxHelmet"));
+            var paddleMesh = EnsureMesh(PrefabDir + "/GreyboxPaddleMesh.asset", () => BlockBoat.Paddle("GreyboxPaddle"));
 
             var root = new GameObject("GreyboxBoat");
-            var hull = new GameObject("Hull", typeof(MeshFilter), typeof(MeshRenderer));
-            hull.transform.SetParent(root.transform, false);
-            hull.transform.localPosition = new Vector3(0f, 0.1f, 0f);
-            hull.GetComponent<MeshFilter>().sharedMesh = hullMesh;
-            hull.GetComponent<MeshRenderer>().sharedMaterial = hullMat;
-            var pilot = new GameObject("Pilot", typeof(MeshFilter), typeof(MeshRenderer));
-            pilot.transform.SetParent(root.transform, false);
-            pilot.transform.localPosition = new Vector3(0f, 0.8f, -0.6f);
-            pilot.GetComponent<MeshFilter>().sharedMesh = pilotMesh;
-            pilot.GetComponent<MeshRenderer>().sharedMaterial = pilotMat;
+            Renderer Part(string name, Mesh mesh, Material mat)
+            {
+                var go = new GameObject(name, typeof(MeshFilter), typeof(MeshRenderer));
+                go.transform.SetParent(root.transform, false);
+                go.transform.localPosition = new Vector3(0f, 0.1f, 0f);
+                go.GetComponent<MeshFilter>().sharedMesh = mesh;
+                var r = go.GetComponent<MeshRenderer>();
+                r.sharedMaterial = mat;
+                return r;
+            }
+            var hull = Part("Hull", hullMesh, hullMat);
+            Part("Deck", deckMesh, trimMat);
+            Part("Pilot", skinMesh, skinMat);
+            Part("Vest", vestMesh, trimMat);
+            var helmet = Part("Helmet", helmetMesh, hullMat);
+            Part("Paddle", paddleMesh, paddleMat);
             // The sim does all collision through one query proxy; views carry no colliders.
-            root.AddComponent<BoatView>();
+            var effects = root.AddComponent<BoatEffects>();
+            effects.Configure(wakeMat, sprayMat);
+            var view = root.AddComponent<BoatView>();
+            var so = new SerializedObject(view);
+            so.FindProperty("_hull").objectReferenceValue = hull.transform;
+            so.FindProperty("_effects").objectReferenceValue = effects;
+            var livery = so.FindProperty("_livery");
+            livery.arraySize = 2;
+            livery.GetArrayElementAtIndex(0).objectReferenceValue = hull;
+            livery.GetArrayElementAtIndex(1).objectReferenceValue = helmet;
+            so.ApplyModifiedPropertiesWithoutUndo();
 
             var prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
             Object.DestroyImmediate(root);
@@ -366,7 +426,7 @@ namespace Downstream.Editor
             pipeline.supportsCameraOpaqueTexture = true;
             pipeline.supportsHDR = true;
             pipeline.msaaSampleCount = 4;
-            pipeline.shadowDistance = 220f;
+            pipeline.shadowDistance = 320f;
             pipeline.shadowCascadeCount = 4;
             // No public setter for soft shadows; write the serialized field.
             var pipelineSo = new SerializedObject(pipeline);
@@ -479,6 +539,15 @@ namespace Downstream.Editor
             if (mat.HasProperty("_Metallic")) mat.SetFloat("_Metallic", 0f);
             EditorUtility.SetDirty(mat);
             return mat;
+        }
+
+        private static Texture2D EnsureTexture(string path, System.Func<Texture2D> build)
+        {
+            var existing = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+            if (existing != null) return existing;
+            var tex = build();
+            AssetDatabase.CreateAsset(tex, path);
+            return tex;
         }
 
         private static Mesh EnsureMesh(string path, System.Func<Mesh> build)

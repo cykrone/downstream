@@ -86,13 +86,33 @@ white, whitewater appears above a flow speed or a surface slope, and shores get 
 `RaceDirector` hands the shader the same interpolated race time the boats are drawn at.
 
 The greybox world is a block kit: `BlockMeshes` builds bevelled boxes (every edge chamfered so it
-catches a highlight, flat-shaded so each block reads as a block), terraced bank strips extruded
-along the centreline, and the low grass-lipped block that edges the channel. The river bed and the
-floodable meadow are one mesh under `Shaders/GreyboxGround.shader`, which blends stones into grass by
-vertex colour with a pale sand rim at the waterline (the bank treatment of the Animal Crossing
-reference), so the shoreline is never cut along the mesh grid. The greybox river runs on a 15 degree
-grade so it visibly flows downhill; the water shader judges whitewater on slope in excess of that
-grade (`_RiverBaseSlope`), so only rapids, ledges and the falls break white.
+catches a highlight, flat-shaded so each block reads as a block), the low grass-lipped block that
+edges the channel, smooth spheres and cones for the organic props, and seeded rounded rocks shared by
+the river boulders. The river bed and the floodable meadow are one mesh under
+`Shaders/GreyboxGround.shader`, which blends stones into grass by vertex colour with a pale sand rim
+at the waterline (the bank treatment of the Animal Crossing reference), so the shoreline is never
+cut along the mesh grid; steep faces show earth under grass and rock under stones, so terrace risers
+and the waterfall face read as cut ground. Behind the meadow one continuous terrain heightfield per
+side (in river coordinates, so it follows the course) climbs a short earth riser to the grass
+terrace and on into tiered hills; there are no extruded bank strips to fold on bends or clip the
+hills. The greybox river runs on a 15 degree grade so it visibly flows downhill; the water shader
+judges whitewater on slope in excess of that grade (`_RiverBaseSlope`), so only rapids, ledges and
+the falls break white. The course is laid out like a race track: two meander components (90 m over
+500 m and 15 m over 230 m) swing the heading through about 55 degrees in each sweeper. Because the
+centreline is a sheared function x(z), the field's half-span and the dressing's lateral offsets are
+scaled by the slope so the channel keeps its width across the sharp bends.
+
+Boats are lofted hulls (`BlockBoat` in `BoatMeshes.cs`): a fine bow entry, full midships, a flat
+transom, a crowned deck with a rub rail and cockpit coaming, a seated pilot in a vest and helmet,
+and a double-bladed paddle. `BoatView` gives each boat a livery from an eight-colour set (hull and
+helmet share one material instance per boat). `BoatEffects` sells speed from the presented state
+alone: a stern wake and two bow wakes as trail ribbons that are re-sampled onto the water surface
+every frame (so waves do not cut them), bow spray that scales with speed, drift spray off the
+outside of a slide coloured by tier, a boost plume and a landing splash, all through
+`Shaders/GreyboxSpray.shader` (unlit, alpha-blended, fogged). `ChaseCamera` widens its field of view
+with speed as well as boost. `ItemWorldView` shows pickups as flagged floats on a ring, mines as
+spiked spheres, logs as capped trunks, pikes as finned bodies and whirlpools as a spinning disc with
+spiral foam arms.
 
 `GreyboxDressing` dresses the valley at runtime from a fixed seed, nothing saved in the scene:
 rolling grass hills behind the bank blocks (a heightfield in river coordinates, so it follows the
@@ -105,11 +125,14 @@ occlusion, shadows and fog; props share a handful of materials each so the SRP b
 draw count down. Meadow placement is measured from the channel edge, so it follows the breathing width. `WaterTextures` generates tileable ripple normals, foam strokes and pebbles at
 runtime so the repository ships no binary placeholders; painted textures replace them with no shader
 change. `GreyboxSceneBuilder` applies the design doc's rendering rules (warm key from the upper left, a
-sky-driven ambient so shadows take the sky's colour, light linear haze, a small-sun procedural sky,
-ACES tonemapping with a touch of bloom, a vignette and warm white balance) and configures URP for
-the water and the look (depth and opaque textures, HDR, 4x MSAA plus SMAA, Forward+, four soft
-shadow cascades to 220 m, screen-space ambient occlusion added to the renderer by reflection since
-URP keeps the feature type internal). `GreyboxDressing` refreshes the ambient probe from the sky at
+sky-driven ambient so shadows take the sky's colour, light linear haze that meets the sky at the
+horizon, ACES tonemapping with a touch of bloom, a vignette and warm white balance) and configures
+URP for the water and the look (depth and opaque textures, HDR, 4x MSAA plus SMAA, Forward+, four
+soft shadow cascades to 320 m, screen-space ambient occlusion added to the renderer by reflection
+since URP keeps the feature type internal). `Shaders/GreyboxSky.shader` is the painted sky: a
+zenith-to-horizon gradient whose horizon band is the fog colour, so far hills dissolve into the same
+haze the sky ends in, a soft sun disc and halo lit from the scene's sun direction, and two layers of
+drifting clouds sampled from the generated noise (no cloud props, no texture downloads). `GreyboxDressing` refreshes the ambient probe from the sky at
 runtime and renders one realtime reflection probe over the course, which the water blends into its
 sky term. Canopies, bushes and pines are smooth-shaded: the design wants chunky, soft-edged forms.
 

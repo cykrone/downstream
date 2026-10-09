@@ -221,11 +221,14 @@ namespace Downstream.Race
 
             float alpha = _clock.Alpha;
             // The water is drawn at the same interpolated time as the boats.
-            if (_waterMesh != null) _waterMesh.SetRaceTime((sim.Tick - 1 + alpha) * BoatSimulator.TickDelta);
+            float drawTime = (sim.Tick - 1 + alpha) * BoatSimulator.TickDelta;
+            if (_waterMesh != null) _waterMesh.SetRaceTime(drawTime);
             for (int i = 0; i < BoatsPerRace; i++)
             {
                 bool away = _race.Status[i].IsRespawning;
                 if (_views[i].gameObject.activeSelf == away) _views[i].gameObject.SetActive(!away);
+                _views[i].Water = _water.Water;
+                _views[i].RaceTime = drawTime;
                 if (!away) _views[i].Present(BoatState.Interpolate(_previous.Boats[i], sim.State.Boats[i], alpha));
             }
         }

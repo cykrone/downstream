@@ -61,10 +61,10 @@ namespace Downstream.Water
             _greybox.Gradient = 0.268f; // 15 degrees: the river runs steeply downhill (402 m over the course, plus the falls)
             // Two meanders: a 40 m swing every 300 m plus a 10 m wobble every 200 m give S-bends and chicanes
             // (heading swings of about 50 degrees, no bend tighter than about 36 m).
-            _greybox.MeanderAmplitude = 40f;
-            _greybox.MeanderWavelength = 300f;
-            _greybox.MeanderAmplitude2 = 10f;
-            _greybox.MeanderWavelength2 = 200f;
+            _greybox.MeanderAmplitude = 90f;
+            _greybox.MeanderWavelength = 500f;
+            _greybox.MeanderAmplitude2 = 15f;
+            _greybox.MeanderWavelength2 = 230f;
             _greybox.MeanderPhase2 = 0.9f;
             // The channel breathes: 30 m narrows run fast, 54 m pools run slow (continuity scales the flow).
             _greybox.WidthVariation = 0.3f;

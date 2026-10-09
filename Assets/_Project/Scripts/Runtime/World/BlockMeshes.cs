@@ -139,6 +139,7 @@ namespace Downstream.World
             {
                 var p0 = path[i];
                 var p1 = path[i + 1];
+                if (Mathf.Abs(p1.y - p0.y) > 1.5f) continue; // a fall: the terrain steps here, the strip does not bridge it
                 var t0 = Tangent(path, i);
                 var t1 = Tangent(path, i + 1);
                 var r0 = new Vector3(t0.z, 0f, -t0.x) * side;
@@ -302,6 +303,21 @@ namespace Downstream.World
                 b.AddTriangleOutward(a, c, Vector3.zero, Vector3.down);
             }
             return b.ToMesh(name);
+        }
+
+        /// <summary>A rounded boulder of about unit radius: two squashed spheres, seeded so each one differs.</summary>
+        public static Mesh Rock(int seed, string name)
+        {
+            var rng = new System.Random(seed);
+            float R(float a, float b) => a + (b - a) * (float)rng.NextDouble();
+            var sphere = SmoothSphere(1f, 10, 14, "RockSphere");
+            var parts = new List<(Mesh, Matrix4x4)>
+            {
+                (sphere, Matrix4x4.TRS(Vector3.zero, Quaternion.Euler(R(-12f, 12f), R(0f, 360f), R(-12f, 12f)), new Vector3(1f, R(0.6f, 0.8f), R(0.75f, 1f)))),
+                (sphere, Matrix4x4.TRS(new Vector3(R(-0.35f, 0.35f), R(0f, 0.25f), R(-0.35f, 0.35f)), Quaternion.Euler(0f, R(0f, 360f), 0f), new Vector3(R(0.5f, 0.75f), R(0.45f, 0.65f), R(0.5f, 0.75f)))),
+                (sphere, Matrix4x4.TRS(new Vector3(R(-0.5f, 0.5f), R(-0.3f, 0f), R(-0.5f, 0.5f)), Quaternion.Euler(0f, R(0f, 360f), 0f), new Vector3(R(0.4f, 0.6f), R(0.3f, 0.5f), R(0.4f, 0.6f)))),
+            };
+            return Merge(name, parts);
         }
 
         /// <summary>Merges placed copies of meshes into one (one material), for props made of several parts.</summary>

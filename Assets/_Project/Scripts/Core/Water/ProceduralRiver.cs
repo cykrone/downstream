@@ -125,6 +125,15 @@ namespace Downstream.Core.Water
             return s.Width * (1f + s.WidthVariation * SimMath.Sin(2f * SimMath.Pi * z / s.WidthWavelength + s.WidthPhase));
         }
 
+        /// <summary>The steepest sideways slope the centreline can reach (sum of the meander components).</summary>
+        public static float MaxCentreSlope(in ProceduralRiverSettings s)
+        {
+            float d = 0f;
+            if (s.MeanderAmplitude > 0f && s.MeanderWavelength > 0f) d += s.MeanderAmplitude * 2f * SimMath.Pi / s.MeanderWavelength;
+            if (s.MeanderAmplitude2 > 0f && s.MeanderWavelength2 > 0f) d += s.MeanderAmplitude2 * 2f * SimMath.Pi / s.MeanderWavelength2;
+            return d;
+        }
+
         /// <summary>dCentreX/dz: the centreline's sideways slope.</summary>
         public static float CentreSlope(in ProceduralRiverSettings s, float z)
         {
@@ -202,7 +211,9 @@ namespace Downstream.Core.Water
 
         public static RiverField Build(ProceduralRiverSettings s, float cellSize = RiverField.DefaultCellSize)
         {
-            float halfSpan = s.Width * (1f + s.WidthVariation) * 0.5f + s.FloodableBank + s.MeanderAmplitude + s.MeanderAmplitude2 + 4f;
+            float maxSlope = MaxCentreSlope(s);
+            float shear = SimMath.Sqrt(1f + maxSlope * maxSlope);
+            float halfSpan = (s.Width * (1f + s.WidthVariation) * 0.5f + s.FloodableBank) * shear + s.MeanderAmplitude + s.MeanderAmplitude2 + 4f;
             float originX = -halfSpan;
             float originZ = -8f;
             float tileSize = cellSize * RiverField.TileTexels;

@@ -7,6 +7,8 @@ Shader "Downstream/Greybox Ground"
         _StoneColor ("Stone tint", Color) = (0.55, 0.53, 0.47, 1)
         _GrassColor ("Grass colour", Color) = (0.40, 0.50, 0.27, 1)
         _SandColor ("Waterline sand", Color) = (0.80, 0.74, 0.58, 1)
+        _EarthColor ("Earth on steep faces", Color) = (0.52, 0.40, 0.28, 1)
+        _CliffColor ("Rock on steep stone faces", Color) = (0.38, 0.38, 0.40, 1)
         [NoScaleOffset] _BaseMap ("Stones", 2D) = "white" {}
         [NoScaleOffset] _DetailMap ("Soft mottling", 2D) = "gray" {}
         _DetailStrength ("Mottling strength", Range(0, 0.6)) = 0.22
@@ -44,6 +46,8 @@ Shader "Downstream/Greybox Ground"
                 float4 _StoneColor;
                 float4 _GrassColor;
                 float4 _SandColor;
+                float4 _EarthColor;
+                float4 _CliffColor;
                 float _DetailStrength;
             CBUFFER_END
 
@@ -94,6 +98,10 @@ Shader "Downstream/Greybox Ground"
                         + SAMPLE_TEXTURE2D(_DetailMap, sampler_DetailMap, IN.positionWS.xz * 0.21 + 0.37).r * 0.4;
                 albedo *= 1.0 + (m - 0.5) * 2.0 * _DetailStrength;
                 float3 N = normalize(IN.normalWS);
+                // Cliff risers and terrace fronts show earth; tops stay grass (the reference's layered banks).
+                float steep = smoothstep(0.32, 0.58, 1.0 - N.y);
+                float3 steepColour = lerp(_CliffColor.rgb, _EarthColor.rgb, g) * (0.85 + 0.3 * m);
+                albedo = lerp(albedo, steepColour, steep);
                 Light light = GetMainLight(TransformWorldToShadowCoord(IN.positionWS));
                 float shadow = light.shadowAttenuation * light.distanceAttenuation;
                 float aoDirect = 1.0, aoIndirect = 1.0;

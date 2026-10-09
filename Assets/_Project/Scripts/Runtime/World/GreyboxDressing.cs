@@ -32,6 +32,7 @@ namespace Downstream.World
         [SerializeField] private Material _lantern;
         [SerializeField] private Material _plank;
         [SerializeField] private Material _shrine;
+        [SerializeField] private Material _spray;
         [Header("Density")]
         [SerializeField] private float _meadowTreesPer100m = 5f;
         [SerializeField] private float _hillTreesPer100m = 20f;
@@ -45,7 +46,9 @@ namespace Downstream.World
         private ProceduralRiverSettings _g;
         private bool _built;
 
-        private const float BankTop = 1.9f; // height of the bank block's top above the water
+        private const float BankTop = 1.9f;      // height of the grass terrace above the water
+        private const float TerraceRun = 1.8f;   // metres over which the meadow rises to the terrace: a short earth riser
+        private const float Tier = 4.5f;         // height of each hill tier (the reference's cliff layers)
 
         private void Start()
         {
@@ -74,14 +77,14 @@ namespace Downstream.World
             for (int side = -1; side <= 1; side += 2)
             {
                 ScatterTrees(trees, side, 3.2f, 10.5f, _meadowTreesPer100m, 0.7f, false);
-                ScatterTrees(trees, side, HillsIn, HillsIn + _hillDepth * 0.35f, _hillTreesPer100m, 0.45f, true);
+                ScatterTrees(trees, side, HillsIn + 4f, HillsIn + _hillDepth * 0.35f, _hillTreesPer100m, 0.45f, true);
                 ScatterTrees(trees, side, HillsIn + _hillDepth * 0.35f, HillsIn + _hillDepth, _hillTreesPer100m * 0.35f, 0.4f, true);
                 ScatterBushes(bushes, side, 3.2f, 10.5f, _bushesPer100m, false);
-                ScatterBushes(bushes, side, HillsIn, HillsIn + _hillDepth * 0.5f, _bushesPer100m, true);
+                ScatterBushes(bushes, side, HillsIn + 2f, HillsIn + _hillDepth * 0.5f, _bushesPer100m, true);
                 ScatterReeds(plants, side);
                 ScatterFlowers(plants, side, 3.2f, 10.5f);
                 ScatterRocks(rocks, side, 2.2f, 10.5f, 1.4f, false);
-                ScatterRocks(rocks, side, HillsIn, HillsIn + _hillDepth, 2.2f, true);
+                ScatterRocks(rocks, side, HillsIn + 2f, HillsIn + _hillDepth, 2.2f, true);
                 LanternPosts(story, side);
             }
             BuildStoryClusters(story);
@@ -90,11 +93,15 @@ namespace Downstream.World
             Dock(landmarks, 330f, -1);
             Dock(landmarks, 1180f, 1);
             Shrine(landmarks, 900f, 1);
+            FallsMist(landmarks);
             SetUpLighting();
         }
 
+        private readonly List<Material> _materials = new List<Material>();
+
         private void OnDestroy()
         {
+            foreach (var m in _materials) if (m != null) Destroy(m);
             foreach (var m in _meshes) if (m != null) Destroy(m);
             _meshes.Clear();
         }
@@ -110,14 +117,17 @@ namespace Downstream.World
 
         private float Surface(float z) => ProceduralRiver.SurfaceAt(_g, Mathf.Clamp(z, 0f, _g.Length));
         private float HalfWidth(float z) => ProceduralRiver.WidthAt(_g, z) * 0.5f;
-        /// <summary>Lateral distance from the centreline to the inner foot of the hills (past the bank block's top).</summary>
-        private float HillsIn => _g.Width * (1f + _g.WidthVariation) * 0.5f + _g.FloodableBank + 4.5f + 2f;
-        private float BankIn => _g.Width * (1f + _g.WidthVariation) * 0.5f + _g.FloodableBank;
+        /// <summary>Lateral distance (from the centreline) where the terrain mesh begins: the outer edge of the floodable meadow.</summary>
+        private float TerrainIn(float z) => HalfWidth(z) + _g.FloodableBank;
+        /// <summary>Lateral distance past the meadow where the hills proper begin (past the terrace).</summary>
+        private float HillsIn => _g.Width * (1f + _g.WidthVariation) * 0.5f + _g.FloodableBank + TerraceRun + 2f;
 
         private Vector3 World(int side, float lateral, float z, float y)
         {
             float cx = ProceduralRiver.CentreX(_g, z);
-            return new Vector3(cx + side * lateral, y, z);
+            float d = ProceduralRiver.CentreSlope(_g, z);
+            // Lateral is measured across the channel; on a bend the same distance spans more x.
+            return new Vector3(cx + side * lateral * Mathf.Sqrt(1f + d * d), y, z);
         }
 
         private Vector3 Tangent(float z)
@@ -126,24 +136,40 @@ namespace Downstream.World
             return new Vector3(d, 0f, 1f).normalized;
         }
 
-        private float HillRise(float lateral, float z)
+        /// <summary>
+        /// Height of the land above the water surface at a lateral distance from the centreline: the
+        /// floodable meadow, a grass terrace rising to the bank top, then hills in soft tiers (the
+        /// reference's layered cliffs) with gentle noise on each tier.
+        /// </summary>
+        private float LandRise(float lateral, float z)
         {
-            float d = Mathf.Max(0f, lateral - HillsIn);
-            float ramp = Mathf.SmoothStep(0f, 1f, d / 40f);
+            float meadowEdge = TerrainIn(z);
+            if (lateral <= meadowEdge) return ProceduralRiver.BankShelfHeight;
+            float t = Mathf.Clamp01((lateral - meadowEdge) / TerraceRun);
+            float terrace = Mathf.Lerp(ProceduralRiver.BankShelfHeight, BankTop, t * t * (3f - 2f * t));
+            float d = Mathf.Max(0f, lateral - meadowEdge - TerraceRun);
+            if (d <= 0f) return terrace;
+            float ramp = Mathf.SmoothStep(0f, 1f, d / 50f);
             float n = Fbm(lateral * 0.012f + 3.1f, z * 0.012f, 3) * 2f - 1f;
             float big = Fbm(lateral * 0.004f, z * 0.004f + 9.7f, 2) * 2f - 1f;
             float ridge = Mathf.Pow(Fbm(lateral * 0.02f + 21f, z * 0.006f + 4f, 2), 3f) * 12f;
-            return BankTop + ramp * (6f + 9f * n + 14f * big + ridge + d * 0.045f);
+            float rough = 6f + 9f * n + 14f * big + ridge + d * 0.045f;
+            rough = 0.5f * (rough + Mathf.Sqrt(rough * rough + 9f)); // soft floor at zero: no pits below the terrace
+            rough *= ramp;
+            // Tiers: plateaus with short steep risers, softened so they read as layers, not stairs.
+            float tiers = rough / Tier;
+            float level = Mathf.Floor(tiers);
+            float frac = tiers - level;
+            float u = Mathf.Clamp01((frac - 0.3f) / 0.4f);
+            float riser = u * u * (3f - 2f * u);
+            float tiered = (level + riser) * Tier;
+            float blend = Mathf.SmoothStep(0f, 1f, d / 25f); // the first few metres stay smooth
+            float plateauNoise = (Fbm(lateral * 0.05f + 7f, z * 0.05f + 2f, 2) - 0.5f) * 0.8f;
+            return terrace + Mathf.Lerp(rough, tiered + plateauNoise, blend);
         }
 
-        /// <summary>Ground height for a prop: the meadow shelf, the bank block's top, or the hills.</summary>
-        private float GroundY(int side, float lateral, float z)
-        {
-            float s = Surface(z);
-            if (lateral < BankIn) return s + ProceduralRiver.BankShelfHeight;
-            if (lateral < HillsIn) return s + BankTop;
-            return s + HillRise(lateral, z);
-        }
+        /// <summary>Ground height for a prop at a lateral distance from the centreline.</summary>
+        private float GroundY(int side, float lateral, float z) => Surface(z) + LandRise(lateral, z);
 
         /// <summary>Meadow placement: lateral is measured from the channel edge so it follows the breathing width.</summary>
         private Vector3 Meadow(int side, float fromEdge, float z, float lift = 0f)
@@ -172,6 +198,61 @@ namespace Downstream.World
 
         private Mesh Keep(Mesh m) { _meshes.Add(m); return m; }
 
+        /// <summary>Mist boiling up from the plunge pool below the waterfall, drifting downstream.</summary>
+        private void FallsMist(Transform parent)
+        {
+            if (_spray == null || _g.WaterfallDistance < 0f || _g.WaterfallDrop <= 0f) return;
+            float z = _g.WaterfallDistance + 2.5f;
+            float width = ProceduralRiver.WidthAt(_g, z);
+            var go = new GameObject("Falls Mist");
+            go.transform.SetParent(parent, false);
+            go.transform.position = World(0, 0f, z, Surface(z) + 0.3f);
+            // Local Z up (the emitter's axis), local Y along the river, local X across it.
+            go.transform.rotation = Quaternion.LookRotation(Vector3.up, Tangent(z));
+            var ps = go.AddComponent<ParticleSystem>();
+            ps.Stop();
+            var main = ps.main;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(1.8f, 3.2f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(0.8f, 2.6f);
+            main.startSize = new ParticleSystem.MinMaxCurve(2.5f, 5.5f);
+            main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+            main.startColor = new Color(1f, 1f, 1f, 0.34f);
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.maxParticles = 400;
+            main.gravityModifier = -0.02f;
+            var em = ps.emission; em.rateOverTime = 80f;
+            var shape = ps.shape;
+            shape.shapeType = ParticleSystemShapeType.Box;
+            shape.scale = new Vector3(width * 0.9f, 4f, 0.5f);
+            var col = ps.colorOverLifetime;
+            col.enabled = true;
+            col.color = new ParticleSystem.MinMaxGradient(new Gradient
+            {
+                colorKeys = new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                alphaKeys = new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.25f), new GradientAlphaKey(0f, 1f) },
+            });
+            var size = ps.sizeOverLifetime;
+            size.enabled = true;
+            size.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0f, 0.5f), new Keyframe(1f, 1.4f)));
+            var vel = ps.velocityOverLifetime;
+            vel.enabled = true;
+            vel.space = ParticleSystemSimulationSpace.World;
+            var drift = Tangent(z) * 1.2f;
+            vel.x = drift.x; vel.y = 0.2f; vel.z = drift.z;
+            var noise = ps.noise;
+            noise.enabled = true;
+            noise.strength = 0.7f;
+            noise.frequency = 0.25f;
+            var r = go.GetComponent<ParticleSystemRenderer>();
+            var mat = new Material(_spray);
+            if (mat.GetTexture("_BaseMap") == null) mat.SetTexture("_BaseMap", WaterTextures.SoftSprite);
+            _materials.Add(mat);
+            r.sharedMaterial = mat;
+            r.shadowCastingMode = ShadowCastingMode.Off;
+            r.receiveShadows = false;
+            ps.Play();
+        }
+
         private void BuildMeshes()
         {
             _sphere = Keep(BlockMeshes.SmoothSphere(1f, 10, 14, "Sphere"));
@@ -193,15 +274,17 @@ namespace Downstream.World
             _canopyVariants = new Mesh[6];
             for (int v = 0; v < _canopyVariants.Length; v++)
             {
-                var parts = new List<(Mesh, Matrix4x4)> { (_sphere, Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(1f, 0.85f, 1f))) };
-                int lobes = 2 + _rng.Next(3);
+                var parts = new List<(Mesh, Matrix4x4)> { (_sphere, Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(1f, 0.8f, 1f))) };
+                int lobes = 3 + _rng.Next(3);
                 for (int l = 0; l < lobes; l++)
                 {
                     float ang = Rand(0f, Mathf.PI * 2f);
-                    float r = Rand(0.5f, 0.72f);
-                    var pos = new Vector3(Mathf.Cos(ang) * Rand(0.45f, 0.7f), Rand(-0.2f, 0.45f), Mathf.Sin(ang) * Rand(0.45f, 0.7f));
-                    parts.Add((_sphere, Matrix4x4.TRS(pos, Quaternion.identity, new Vector3(r, r * 0.85f, r))));
+                    float r = Rand(0.55f, 0.78f);
+                    var pos = new Vector3(Mathf.Cos(ang) * Rand(0.4f, 0.65f), Rand(0.05f, 0.5f), Mathf.Sin(ang) * Rand(0.4f, 0.65f));
+                    parts.Add((_sphere, Matrix4x4.TRS(pos, Quaternion.identity, new Vector3(r, r * 0.8f, r))));
                 }
+                float knob = Rand(0.45f, 0.6f);
+                parts.Add((_sphere, Matrix4x4.TRS(new Vector3(Rand(-0.15f, 0.15f), 0.72f, Rand(-0.15f, 0.15f)), Quaternion.identity, new Vector3(knob, knob * 0.8f, knob))));
                 _canopyVariants[v] = Keep(BlockMeshes.Merge("Canopy" + v, parts));
             }
 
@@ -216,9 +299,10 @@ namespace Downstream.World
                 {
                     float coneH = 1.1f * (1f - t * 0.1f);
                     parts.Add((_cone, Matrix4x4.TRS(new Vector3(0f, h, 0f), Quaternion.Euler(0f, Rand(0f, 360f), 0f), new Vector3(radius, coneH, radius))));
-                    h += coneH * 0.5f;
+                    h += coneH * 0.42f;
                     radius *= 0.74f;
                 }
+                parts.Add((_sphere, Matrix4x4.TRS(new Vector3(0f, h + 0.25f, 0f), Quaternion.identity, Vector3.one * 0.16f))); // soft tip
                 _pineVariants[v] = Keep(BlockMeshes.Merge("Pine" + v, parts));
             }
 
@@ -252,10 +336,15 @@ namespace Downstream.World
 
         private void BuildHills(Transform parent, int side)
         {
-            float hillsIn = HillsIn - 2f;
-            const float spacing = 6f;
+            // Columns are dense across the terrace and sparse out on the hills; rows are 3 m along the river.
+            var offsets = new List<float>();
+            for (float o = -0.5f; o < TerraceRun + 2f; o += 0.35f) offsets.Add(o);
+            for (float o = TerraceRun + 2f; o < TerraceRun + 6f; o += 1f) offsets.Add(o);
+            for (float o = TerraceRun + 6f; o < 40f; o += 2.5f) offsets.Add(o);
+            for (float o = 40f; o <= _hillDepth; o += 6f) offsets.Add(o);
+            const float spacing = 3f;
             float z0 = -60f, z1 = _g.Length + 80f;
-            int nl = Mathf.CeilToInt(_hillDepth / spacing) + 1;
+            int nl = offsets.Count;
             int nz = Mathf.CeilToInt((z1 - z0) / spacing) + 1;
             var verts = new Vector3[nl * nz];
             var cols = new Color[nl * nz];
@@ -264,8 +353,8 @@ namespace Downstream.World
             for (int il = 0; il < nl; il++)
             {
                 float z = z0 + iz * spacing;
-                float lateral = hillsIn + il * spacing;
-                float y = Surface(z) + HillRise(lateral, z);
+                float lateral = TerrainIn(z) + offsets[il];
+                float y = Surface(z) + LandRise(lateral, z);
                 int i = iz * nl + il;
                 verts[i] = World(side, lateral, z, y);
                 float tint = Fbm(lateral * 0.05f + 11f, z * 0.05f, 2);
@@ -329,10 +418,10 @@ namespace Downstream.World
 
         private void RoundTree(Transform parent, Vector3 pos, Quaternion yaw, float scale)
         {
-            float trunkH = 2.4f * scale;
-            float r = 2.7f * scale;
-            Prop(parent, "Trunk", _trunkMesh, _trunk, pos, yaw, new Vector3(scale * 1.1f, trunkH + r * 0.5f, scale * 1.1f));
-            Prop(parent, "Canopy", Pick(_canopyVariants), Pick(_canopies), pos + Vector3.up * (trunkH + r * 0.7f), yaw, new Vector3(r, r, r));
+            float trunkH = 1.7f * scale;
+            float r = 2.6f * scale;
+            Prop(parent, "Trunk", _trunkMesh, _trunk, pos, yaw, new Vector3(scale * 1.5f, trunkH + r * 0.6f, scale * 1.5f));
+            Prop(parent, "Canopy", Pick(_canopyVariants), Pick(_canopies), pos + Vector3.up * (trunkH + r * 0.75f), yaw, new Vector3(r, r, r));
         }
 
         private void Pine(Transform parent, Vector3 pos, Quaternion yaw, float scale)
@@ -541,6 +630,9 @@ namespace Downstream.World
 
         private void SetUpLighting()
         {
+            // The painted sky's clouds come from the same generated noise as the ground; the asset cannot hold it.
+            var sky = RenderSettings.skybox;
+            if (sky != null && sky.HasProperty("_CloudMap")) sky.SetTexture("_CloudMap", WaterTextures.SoftNoise);
             DynamicGI.UpdateEnvironment();
             var go = new GameObject("Sky Reflection Probe");
             go.transform.SetParent(transform, false);

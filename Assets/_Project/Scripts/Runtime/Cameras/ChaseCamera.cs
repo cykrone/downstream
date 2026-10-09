@@ -23,6 +23,8 @@ namespace Downstream.Cameras
         [SerializeField] private float _maxLift = 7f;
         [SerializeField] private float _baseFov = 70f;
         [SerializeField] private float _boostFov = 85f;
+        [SerializeField] private float _speedFovGain = 10f;
+        [SerializeField] private float _fullFovSpeed = 18f;
         [SerializeField] private float _followSharpness = 8f;
         [SerializeField] private float _lookSharpness = 6f;
         [SerializeField] private float _fovSharpness = 4f;
@@ -82,7 +84,8 @@ namespace Downstream.Cameras
             _lookPoint = Vector3.Lerp(_lookPoint, lookTarget, 1f - Mathf.Exp(-_lookSharpness * Time.deltaTime));
             transform.rotation = Quaternion.LookRotation(_lookPoint - transform.position, Vector3.up);
 
-            float fov = s.BoostTime > 0f ? _boostFov : _baseFov;
+            float speedK = Mathf.Clamp01(s.Velocity.ToUnity().magnitude / _fullFovSpeed);
+            float fov = s.BoostTime > 0f ? _boostFov : _baseFov + _speedFovGain * speedK;
             _camera.fieldOfView = Mathf.Lerp(_camera.fieldOfView, fov, 1f - Mathf.Exp(-_fovSharpness * Time.deltaTime));
         }
     }

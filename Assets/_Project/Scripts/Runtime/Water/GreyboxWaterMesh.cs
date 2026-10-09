@@ -33,8 +33,9 @@ namespace Downstream.Water
         public RiverFieldGpu Gpu => _gpu;
 
         /// <summary>
-        /// Lines both banks with terraced, bevelled block strips, invisible box colliders for the boats to
-        /// slide along, and a bevelled block for each boulder. Placeholder for the modular block kit.
+        /// Edges the channel with a low grass-lipped block, lines the bank with invisible box colliders for
+        /// the boats to slide along, and places a block for each boulder. The terrain itself (meadow terrace
+        /// and hills) is one continuous surface built by GreyboxDressing, so nothing can clip through it.
         /// </summary>
         public void BuildBanks(RiverDefinition river, Material grass, Material earth, Material rock, Material slope = null)
         {
@@ -46,16 +47,6 @@ namespace Downstream.Water
             var points = river.SampleCentreline();
             var path = new List<Vector3>(points.Length);
             foreach (var p in points) path.Add(p.ToUnity());
-
-            for (int s = -1; s <= 1; s += 2)
-            {
-                var bank = new GameObject(s < 0 ? "Bank L" : "Bank R", typeof(MeshFilter), typeof(MeshRenderer));
-                bank.transform.SetParent(root, false);
-                bank.GetComponent<MeshFilter>().sharedMesh = BlockMeshes.BankStrip(path, s, innerOffset, 4f, 1.9f, 0.15f, s < 0 ? "GreyboxBankL" : "GreyboxBankR");
-                var r = bank.GetComponent<MeshRenderer>();
-                r.sharedMaterials = new[] { grass, slope };
-                r.shadowCastingMode = ShadowCastingMode.On;
-            }
 
             // The low grass-lipped block that edges the channel, just where the bank ramp reaches the meadow.
             float lipOffset = 1.0f; // from the channel edge, which follows the breathing width
@@ -101,11 +92,12 @@ namespace Downstream.Water
                 float d = boulders[i].Radius * 2f;
                 var go = new GameObject($"Boulder {i}", typeof(MeshFilter), typeof(MeshRenderer), typeof(BoxCollider));
                 go.transform.SetParent(root, false);
-                go.transform.position = river.BoulderPosition(boulders[i]) + Vector3.up * 0.45f;
+                go.transform.position = river.BoulderPosition(boulders[i]) + Vector3.up * 0.1f;
                 go.transform.rotation = Quaternion.Euler(0f, 17f * (i + 1), 0f);
                 var size = new Vector3(d, 1.6f, d * 0.85f);
-                go.GetComponent<MeshFilter>().sharedMesh = BlockMeshes.BevelledBox(size, 0.35f, $"GreyboxBoulder{i}");
-                go.GetComponent<BoxCollider>().size = size;
+                go.GetComponent<MeshFilter>().sharedMesh = BlockMeshes.Rock(31 + i * 7, $"GreyboxBoulder{i}");
+                go.transform.localScale = new Vector3(boulders[i].Radius * 1.15f, boulders[i].Radius * 0.9f, boulders[i].Radius * 1.05f);
+                go.GetComponent<BoxCollider>().size = new Vector3(size.x / go.transform.localScale.x, size.y / go.transform.localScale.y, size.z / go.transform.localScale.z);
                 var r = go.GetComponent<MeshRenderer>();
                 r.sharedMaterial = rock;
                 r.shadowCastingMode = ShadowCastingMode.On;
