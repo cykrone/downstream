@@ -1,0 +1,57 @@
+name: Unity tests
+
+# Runs the Unity EditMode tests (and compiles every assembly) with GameCI.
+# Skips cleanly until a licence is configured: add UNITY_LICENSE (contents of the .ulf file from
+# Unity Hub), UNITY_EMAIL and UNITY_PASSWORD as repository secrets. Pro seats use UNITY_SERIAL instead.
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  editmode:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for a Unity licence
+        id: licence
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+        run: |
+          if [ -n "$UNITY_LICENSE" ] || [ -n "$UNITY_SERIAL" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No Unity licence secret configured; skipping Unity tests."
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.licence.outputs.present == 'true'
+        with:
+          lfs: true
+
+      - uses: actions/cache@v4
+        if: steps.licence.outputs.present == 'true'
+        with:
+          path: Library
+          key: Library-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: Library-
+
+      - uses: game-ci/unity-test-runner@v4
+        if: steps.licence.outputs.present == 'true'
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          testMode: editmode
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          coverageOptions: generateAdditionalMetrics;generateHtmlReport;generateBadgeReport;assemblyFilters:+Downstream.Core
+
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.licence.outputs.present == 'true'
+        with:
+          name: unity-test-results
+          path: |
+            artifacts
+            CodeCoverage

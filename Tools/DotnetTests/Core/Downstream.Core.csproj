@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Builds the engine-independent sim core outside Unity, against the same .NET Standard 2.1 API
+    surface and C# 9 language version Unity 6 uses. Lets CI run the core tests without a Unity licence.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>Downstream.Core</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../../Assets/_Project/Scripts/Core/**/*.cs" />
+  </ItemGroup>
+</Project>
