@@ -48,7 +48,7 @@ namespace Downstream.Water
             return new Vector3(cx + b.Lateral / tZ, ProceduralRiver.SurfaceAt(_greybox, d), d);
         }
 
-        /// <summary>A 1.5 km test river with a 6 m falls, floodable banks, two eddy rocks, a ledge hole and a wave train.</summary>
+        /// <summary>A 1.5 km test river on a 5 degree grade with a 6 m falls, floodable banks, two eddy rocks, a ledge hole and a wave train.</summary>
         public void ApplyGreyboxDefaults()
         {
             _layers = new WaterLayers
@@ -58,6 +58,7 @@ namespace Downstream.Water
             };
             _greybox = ProceduralRiverSettings.Default;
             _greybox.Length = 1500f;
+            _greybox.Gradient = 0.0875f; // 5 degrees: the river visibly runs downhill (131 m over the course, plus the falls)
             _greybox.WaterfallDistance = 700f;
             _greybox.WaterfallDrop = 6f;
             _greybox.FloodableBank = 12f;

@@ -91,6 +91,11 @@ namespace Downstream.Core.Water
     /// </summary>
     public static class ProceduralRiver
     {
+        /// <summary>Length of the ramp from the channel edge up to the floodable shelf, metres.</summary>
+        public const float BankRampLength = 2.5f;
+        /// <summary>Height of the floodable shelf above the base water level, metres.</summary>
+        public const float BankShelfHeight = 0.5f;
+
         public static float CentreX(in ProceduralRiverSettings s, float z) =>
             s.MeanderAmplitude <= 0f ? 0f : s.MeanderAmplitude * SimMath.Sin(2f * SimMath.Pi * z / s.MeanderWavelength);
 
@@ -208,7 +213,13 @@ namespace Downstream.Core.Water
                     }
                     else
                     {
-                        bed = surface + 0.5f;
+                        // The floodable meadow: a short ramp up from the channel floor, then a flat shelf
+                        // 0.5 m above the water that only a flood pulse wets. A vertical wall at the channel
+                        // edge would read as a 0.5 m sawtooth at grazing angles and ground boats on a step.
+                        float over = abs - halfWidth;
+                        float t = SimMath.Clamp01(over / BankRampLength);
+                        t = t * t * (3f - 2f * t);
+                        bed = SimMath.Lerp(surface - s.Depth * 0.4f, surface + BankShelfHeight, t);
                         features |= WaterFeature.Floodable;
                     }
 

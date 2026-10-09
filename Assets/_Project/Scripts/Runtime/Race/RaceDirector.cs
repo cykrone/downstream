@@ -91,7 +91,7 @@ namespace Downstream.Race
             if (_water.Source != _river)
             {
                 _water = new RiverWaterCache { Source = _river, Water = _river.CreateWater() };
-                if (_waterMesh != null) _waterMesh.Build(_water.Water);
+                if (_waterMesh != null) _waterMesh.Build(_water.Water, _river);
             }
             var water = _water.Water;
             var track = new RaceTrack(_river.SampleCentreline());
@@ -219,6 +219,8 @@ namespace Downstream.Race
             }
 
             float alpha = _clock.Alpha;
+            // The water is drawn at the same interpolated time as the boats.
+            if (_waterMesh != null) _waterMesh.SetRaceTime((sim.Tick - 1 + alpha) * BoatSimulator.TickDelta);
             for (int i = 0; i < BoatsPerRace; i++)
             {
                 bool away = _race.Status[i].IsRespawning;

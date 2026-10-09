@@ -14,7 +14,7 @@ and online.
 | Engine | Unity 6.3 LTS (`6000.3.26f1`), upgrade to 6.7 LTS once it has settled |
 | Rendering | URP, Forward+ |
 | Gameplay sim | Engine-independent C# core at a fixed 120 Hz (`Downstream.Core`) |
-| Water | Custom River Field shared by physics, AI and the water shader |
+| Water | Custom River Field shared by physics, AI and the water shader (`Shaders/RiverWater.shader`, parity-tested against the CPU) |
 | Input | Input System 1.20 |
 | Netcode | Custom on Steamworks.NET sockets (or Fish-Networking 4) — not started |
 | Audio | FMOD — not started |
@@ -26,9 +26,11 @@ and online.
 2. Open the folder in Unity Hub with editor **6000.3.26f1** (any newer 6000.3 patch is fine).
 3. First open only: Unity generates `.meta` files for anything that lacks one and resolves
    `Packages/manifest.json`. Commit any new `.meta` files it creates.
-4. Run **Downstream > Create Greybox Race Scene**. It creates and assigns a URP asset if the project
-   has none, a 1.5 km test river with a 6 m falls and a flood pulse, a boat and a chase camera, and
-   saves `Assets/_Project/Scenes/GreyboxRace.unity`.
+4. Run **Downstream > Create Greybox Race Scene**. It creates and configures the URP assets, the
+   lighting and post-processing from the design doc's rendering rules, a 1.5 km test river with a 6 m
+   falls and a flood pulse, terraced block-kit banks, a boat and a chase camera, and saves
+   `Assets/_Project/Scenes/GreyboxRace.unity`. Run it again any time to rebuild the scene with the
+   current look.
 5. Press Play. After a 3 s countdown, the keyboard and the first gamepad drive boat 1 (RT/W throttle,
    LT/S brake, stick or A/D steer, RB/Space hop and drift, LB/E item: tap to use, hold to trail it
    behind as a shield); each further connected gamepad adds a split-screen player. The other boats
@@ -43,7 +45,9 @@ Assets/_Project/
     Core/       Downstream.Core     pure C#, no UnityEngine: water, boat sim, race, items, AI, prediction
     Runtime/    Downstream.Runtime  MonoBehaviours: race director, views, cameras, input, greybox water
     Editor/     Downstream.Editor   greybox scene builder, asset provenance database and build gate
+  Shaders/                          River Field HLSL sampler, the river water shader, the GPU parity kernel
   Tests/EditMode/                   NUnit tests for the core (run in Unity and with dotnet)
+  Tests/EditMode/Runtime/           Unity-only tests: the GPU water sampler against the CPU one
 Tools/DotnetTests/                  builds the core as netstandard2.1 and runs its tests outside Unity
 docs/ARCHITECTURE.md                how the pieces fit together
 ```

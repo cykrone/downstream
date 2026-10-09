@@ -57,7 +57,7 @@ namespace Downstream.Core.Water
         public const int TileTexels = 128;
         public const float DefaultCellSize = 0.5f;
         private const int TexelsPerTile = TileTexels * TileTexels;
-        internal const float UnwrittenBed = 9999f;
+        public const float UnwrittenBed = 9999f;
 
         public float OriginX { get; }
         public float OriginZ { get; }
