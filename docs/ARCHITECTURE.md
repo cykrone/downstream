@@ -80,8 +80,12 @@ white, whitewater appears above a flow speed or a surface slope, and shores get 
 `RaceDirector` hands the shader the same interpolated race time the boats are drawn at.
 
 The greybox world is a block kit: `BlockMeshes` builds bevelled boxes (every edge chamfered so it
-catches a highlight, flat-shaded so each block reads as a block) and terraced bank strips extruded
-along the centreline. `WaterTextures` generates tileable ripple normals, foam strokes and pebbles at
+catches a highlight, flat-shaded so each block reads as a block), terraced bank strips extruded
+along the centreline, and the low grass-lipped block that edges the channel. The river bed and the
+floodable meadow are one mesh under `Shaders/GreyboxGround.shader`, which blends stones into grass by
+vertex colour with a pale sand rim at the waterline (the bank treatment of the Animal Crossing
+reference), so the shoreline is never cut along the mesh grid. The greybox river runs on a 5 degree
+grade so it visibly flows downhill. `WaterTextures` generates tileable ripple normals, foam strokes and pebbles at
 runtime so the repository ships no binary placeholders; painted textures replace them with no shader
 change. `GreyboxSceneBuilder` applies the design doc's rendering rules (warm key from the upper left,
 cool trilight ambient so shadows read teal, light linear haze, a small-sun procedural sky, ACES

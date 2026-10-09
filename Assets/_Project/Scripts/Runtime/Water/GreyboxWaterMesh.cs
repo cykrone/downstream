@@ -55,6 +55,18 @@ namespace Downstream.Water
                 r.shadowCastingMode = ShadowCastingMode.On;
             }
 
+            // The low grass-lipped block that edges the channel, just where the bank ramp reaches the meadow.
+            float lipOffset = g.Width * 0.5f + 1.0f;
+            for (int s = -1; s <= 1; s += 2)
+            {
+                var lip = new GameObject(s < 0 ? "Channel Lip L" : "Channel Lip R", typeof(MeshFilter), typeof(MeshRenderer));
+                lip.transform.SetParent(root, false);
+                lip.GetComponent<MeshFilter>().sharedMesh = BlockMeshes.ChannelLip(path, s, lipOffset, 2.0f, s < 0 ? "GreyboxLipL" : "GreyboxLipR");
+                var lr = lip.GetComponent<MeshRenderer>();
+                lr.sharedMaterials = new[] { grass, earth };
+                lr.shadowCastingMode = ShadowCastingMode.On;
+            }
+
             // Collision: one box per centreline segment, at the inner face of the bank, never drawn.
             var colliders = new GameObject("Bank Colliders").transform;
             colliders.SetParent(root, false);

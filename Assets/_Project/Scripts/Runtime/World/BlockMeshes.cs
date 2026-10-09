@@ -82,7 +82,34 @@ namespace Downstream.World
         {
             // Profile in (lateral from the inner foot, height above the water surface). Walk inner foot to outer face.
             // Each segment is flagged top (grass) or face (earth).
+            var profile = BankProfile(thickness, height, bevel);
+            return Strip(path, side, innerOffset, profile, name);
+        }
+
+        /// <summary>
+        /// The low block that edges the channel on the reference banks: a short earth face dropping into the
+        /// shallows, a grass lip overhanging it, and a bevelled grass top a little above the meadow.
+        /// </summary>
+        public static Mesh ChannelLip(IReadOnlyList<Vector3> path, int side, float innerOffset, float width, string name)
+        {
+            const float bevel = 0.08f;
             var profile = new List<(Vector2 p, bool top)>
+            {
+                (new Vector2(0f, -0.45f), false),
+                (new Vector2(0f, 0.18f), false),                 // short earth face
+                (new Vector2(-0.16f, 0.26f), false),             // lip underside, overhanging the water
+                (new Vector2(-0.16f, 0.46f), false),             // lip front
+                (new Vector2(-0.16f + bevel, 0.56f), true),      // chamfer onto the top
+                (new Vector2(width - bevel, 0.56f), true),       // grass top
+                (new Vector2(width, 0.48f), false),              // outer chamfer
+                (new Vector2(width, 0.3f), false),               // down into the meadow
+            };
+            return Strip(path, side, innerOffset, profile, name);
+        }
+
+        private static List<(Vector2 p, bool top)> BankProfile(float thickness, float height, float bevel)
+        {
+            return new List<(Vector2 p, bool top)>
             {
                 (new Vector2(0f, -2.5f), false),
                 (new Vector2(0f, 0.85f), false),                      // step riser
@@ -97,7 +124,11 @@ namespace Downstream.World
                 (new Vector2(thickness, height - bevel), false),       // outer chamfer
                 (new Vector2(thickness, -2.5f), false),                // outer face
             };
+        }
 
+        /// <summary>Extrudes a (lateral, height) profile along a path on one side of it. Submesh 0 = tops, 1 = faces.</summary>
+        public static Mesh Strip(IReadOnlyList<Vector3> path, int side, float innerOffset, List<(Vector2 p, bool top)> profile, string name)
+        {
             var tops = new MeshBuilder();
             var faces = new MeshBuilder();
             int n = path.Count;

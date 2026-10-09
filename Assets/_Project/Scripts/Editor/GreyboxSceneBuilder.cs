@@ -70,7 +70,7 @@ namespace Downstream.Editor
             var rockMat = EnsureMaterial(TrackDir + "/GreyboxRock.mat", litShader, Rock, 0.2f);
             var groundShader = Shader.Find("Downstream/Greybox Ground") ?? litShader;
             var bedMat = EnsureMaterial(TrackDir + "/GreyboxBed.mat", groundShader, Stones, 0.35f);
-            if (bedMat.HasProperty("_StoneColor")) { bedMat.SetColor("_StoneColor", Stones); bedMat.SetColor("_GrassColor", Sand); }
+            if (bedMat.HasProperty("_StoneColor")) { bedMat.SetColor("_StoneColor", Stones); bedMat.SetColor("_GrassColor", Sand); bedMat.SetColor("_SandColor", new Color(0.80f, 0.74f, 0.58f)); }
             var waterMat = EnsureMaterial(TrackDir + "/GreyboxWater.mat", waterShader, Color.white, 0.94f);
             ConfigureWaterMaterial(waterMat);
             var hullMat = EnsureMaterial(PrefabDir + "/GreyboxHull.mat", litShader, Tomato, 0.32f);
@@ -315,18 +315,18 @@ namespace Downstream.Editor
         private static void ConfigureWaterMaterial(Material mat)
         {
             if (!mat.HasProperty("_ShallowColor")) return;
-            mat.SetColor("_ShallowColor", new Color(0.55f, 0.86f, 0.72f));
-            mat.SetColor("_DeepColor", new Color(0.07f, 0.30f, 0.30f));
-            mat.SetVector("_Absorption", new Vector4(2.6f, 1.3f, 1.0f, 0f));
+            mat.SetColor("_ShallowColor", new Color(0.58f, 0.84f, 0.78f));
+            mat.SetColor("_DeepColor", new Color(0.11f, 0.33f, 0.37f));
+            mat.SetVector("_Absorption", new Vector4(2.2f, 1.2f, 0.95f, 0f));
             mat.SetFloat("_Refraction", 0.035f);
             mat.SetFloat("_EdgeFade", 0.35f);
             mat.SetFloat("_RippleScale", 0.25f);
-            mat.SetFloat("_RippleStrength", 0.28f);
+            mat.SetFloat("_RippleStrength", 0.25f);
             mat.SetFloat("_FlowSpeed", 0.35f);
             mat.SetFloat("_LaneStretch", 1.5f);
             mat.SetFloat("_SpecularStrength", 2f);
-            mat.SetColor("_ZenithColor", new Color(0.45f, 0.66f, 0.92f));
-            mat.SetColor("_HorizonColor", new Color(0.82f, 0.90f, 0.96f));
+            mat.SetColor("_ZenithColor", new Color(0.50f, 0.68f, 0.90f));
+            mat.SetColor("_HorizonColor", new Color(0.85f, 0.90f, 0.95f));
             mat.SetFloat("_Fresnel", 1f);
             mat.SetFloat("_FoamScale", 0.22f);
             mat.SetFloat("_FoamFlowStart", 4f);

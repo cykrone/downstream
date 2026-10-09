@@ -6,6 +6,7 @@ Shader "Downstream/Greybox Ground"
     {
         _StoneColor ("Stone tint", Color) = (0.55, 0.53, 0.47, 1)
         _GrassColor ("Grass colour", Color) = (0.40, 0.50, 0.27, 1)
+        _SandColor ("Waterline sand", Color) = (0.80, 0.74, 0.58, 1)
         [NoScaleOffset] _BaseMap ("Stones", 2D) = "white" {}
     }
 
@@ -37,6 +38,7 @@ Shader "Downstream/Greybox Ground"
             CBUFFER_START(UnityPerMaterial)
                 float4 _StoneColor;
                 float4 _GrassColor;
+                float4 _SandColor;
             CBUFFER_END
 
             struct Attributes
@@ -72,7 +74,11 @@ Shader "Downstream/Greybox Ground"
             half4 Frag(Varyings IN) : SV_Target
             {
                 float3 stones = SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, IN.uv).rgb * _StoneColor.rgb;
-                float3 albedo = lerp(stones, _GrassColor.rgb, saturate(IN.grass));
+                float g = saturate(IN.grass);
+                float3 albedo = lerp(stones, _GrassColor.rgb, g);
+                // A pale strip of sand where the stones give way to grass: the waterline of the reference banks.
+                float rim = 1.0 - abs(g * 2.0 - 1.0);
+                albedo = lerp(albedo, _SandColor.rgb, rim * rim * 0.7);
                 float3 N = normalize(IN.normalWS);
                 Light light = GetMainLight(TransformWorldToShadowCoord(IN.positionWS));
                 float shadow = light.shadowAttenuation * light.distanceAttenuation;
