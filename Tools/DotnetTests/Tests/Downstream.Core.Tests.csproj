@@ -8,7 +8,8 @@
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../../../Assets/_Project/Tests/EditMode/**/*.cs" />
+    <!-- EditMode/Runtime holds Unity-side tests (GPU parity) that need UnityEngine; they run only in the editor. -->
+    <Compile Include="../../../Assets/_Project/Tests/EditMode/**/*.cs" Exclude="../../../Assets/_Project/Tests/EditMode/Runtime/**/*.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Core/Downstream.Core.csproj" />
