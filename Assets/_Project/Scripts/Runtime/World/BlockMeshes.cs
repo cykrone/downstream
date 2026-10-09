@@ -91,6 +91,9 @@ namespace Downstream.World
         /// shallows, a grass lip overhanging it, and a bevelled grass top a little above the meadow.
         /// </summary>
         public static Mesh ChannelLip(IReadOnlyList<Vector3> path, int side, float innerOffset, float width, string name)
+            => ChannelLip(path, side, null, width, name, innerOffset);
+
+        public static Mesh ChannelLip(IReadOnlyList<Vector3> path, int side, float[] innerOffsets, float width, string name, float innerOffset = 0f)
         {
             const float bevel = 0.08f;
             var profile = new List<(Vector2 p, bool top)>
@@ -104,7 +107,7 @@ namespace Downstream.World
                 (new Vector2(width, 0.48f), false),              // outer chamfer
                 (new Vector2(width, 0.3f), false),               // down into the meadow
             };
-            return Strip(path, side, innerOffset, profile, name);
+            return Strip(path, side, innerOffset, profile, name, innerOffsets);
         }
 
         private static List<(Vector2 p, bool top)> BankProfile(float thickness, float height, float bevel)
@@ -127,7 +130,7 @@ namespace Downstream.World
         }
 
         /// <summary>Extrudes a (lateral, height) profile along a path on one side of it. Submesh 0 = tops, 1 = faces.</summary>
-        public static Mesh Strip(IReadOnlyList<Vector3> path, int side, float innerOffset, List<(Vector2 p, bool top)> profile, string name)
+        public static Mesh Strip(IReadOnlyList<Vector3> path, int side, float innerOffset, List<(Vector2 p, bool top)> profile, string name, float[] innerOffsets = null)
         {
             var tops = new MeshBuilder();
             var faces = new MeshBuilder();
@@ -140,14 +143,16 @@ namespace Downstream.World
                 var t1 = Tangent(path, i + 1);
                 var r0 = new Vector3(t0.z, 0f, -t0.x) * side;
                 var r1 = new Vector3(t1.z, 0f, -t1.x) * side;
+                float off0 = innerOffsets != null ? innerOffsets[i] : innerOffset;
+                float off1 = innerOffsets != null ? innerOffsets[i + 1] : innerOffset;
                 for (int j = 0; j < profile.Count - 1; j++)
                 {
                     var (a, top) = profile[j];
                     var (c, _) = profile[j + 1];
-                    var v00 = p0 + r0 * (innerOffset + a.x) + Vector3.up * a.y;
-                    var v01 = p0 + r0 * (innerOffset + c.x) + Vector3.up * c.y;
-                    var v10 = p1 + r1 * (innerOffset + a.x) + Vector3.up * a.y;
-                    var v11 = p1 + r1 * (innerOffset + c.x) + Vector3.up * c.y;
+                    var v00 = p0 + r0 * (off0 + a.x) + Vector3.up * a.y;
+                    var v01 = p0 + r0 * (off0 + c.x) + Vector3.up * c.y;
+                    var v10 = p1 + r1 * (off1 + a.x) + Vector3.up * a.y;
+                    var v11 = p1 + r1 * (off1 + c.x) + Vector3.up * c.y;
                     // The profile walks the bank clockwise from the inner foot, so its left-hand normal
                     // (-dy, dx) in (lateral, up) points out of the block: into the river on the inner
                     // face, up on the treads, away from the river on the outer face.
@@ -297,6 +302,17 @@ namespace Downstream.World
                 b.AddTriangleOutward(a, c, Vector3.zero, Vector3.down);
             }
             return b.ToMesh(name);
+        }
+
+        /// <summary>Merges placed copies of meshes into one (one material), for props made of several parts.</summary>
+        public static Mesh Merge(string name, IList<(Mesh mesh, Matrix4x4 transform)> parts)
+        {
+            var combine = new CombineInstance[parts.Count];
+            for (int i = 0; i < parts.Count; i++) combine[i] = new CombineInstance { mesh = parts[i].mesh, transform = parts[i].transform };
+            var m = new Mesh { name = name, indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
+            m.CombineMeshes(combine, true, true);
+            m.RecalculateBounds();
+            return m;
         }
 
         /// <summary>Flat-shaded mesh accumulator: every face gets its own vertices.</summary>

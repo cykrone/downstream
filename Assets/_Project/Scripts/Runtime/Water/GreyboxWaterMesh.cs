@@ -36,12 +36,13 @@ namespace Downstream.Water
         /// Lines both banks with terraced, bevelled block strips, invisible box colliders for the boats to
         /// slide along, and a bevelled block for each boulder. Placeholder for the modular block kit.
         /// </summary>
-        public void BuildBanks(RiverDefinition river, Material grass, Material earth, Material rock)
+        public void BuildBanks(RiverDefinition river, Material grass, Material earth, Material rock, Material slope = null)
         {
+            slope = slope != null ? slope : earth;
             var root = new GameObject("Greybox Banks").transform;
             root.SetParent(transform, false);
             var g = river.Greybox;
-            float innerOffset = g.Width * 0.5f + g.FloodableBank;
+            float innerOffset = g.Width * (1f + g.WidthVariation) * 0.5f + g.FloodableBank;
             var points = river.SampleCentreline();
             var path = new List<Vector3>(points.Length);
             foreach (var p in points) path.Add(p.ToUnity());
@@ -50,19 +51,21 @@ namespace Downstream.Water
             {
                 var bank = new GameObject(s < 0 ? "Bank L" : "Bank R", typeof(MeshFilter), typeof(MeshRenderer));
                 bank.transform.SetParent(root, false);
-                bank.GetComponent<MeshFilter>().sharedMesh = BlockMeshes.BankStrip(path, s, innerOffset, 4f, 2.4f, 0.15f, s < 0 ? "GreyboxBankL" : "GreyboxBankR");
+                bank.GetComponent<MeshFilter>().sharedMesh = BlockMeshes.BankStrip(path, s, innerOffset, 4f, 1.9f, 0.15f, s < 0 ? "GreyboxBankL" : "GreyboxBankR");
                 var r = bank.GetComponent<MeshRenderer>();
-                r.sharedMaterials = new[] { grass, earth };
+                r.sharedMaterials = new[] { grass, slope };
                 r.shadowCastingMode = ShadowCastingMode.On;
             }
 
             // The low grass-lipped block that edges the channel, just where the bank ramp reaches the meadow.
-            float lipOffset = g.Width * 0.5f + 1.0f;
+            float lipOffset = 1.0f; // from the channel edge, which follows the breathing width
             for (int s = -1; s <= 1; s += 2)
             {
                 var lip = new GameObject(s < 0 ? "Channel Lip L" : "Channel Lip R", typeof(MeshFilter), typeof(MeshRenderer));
                 lip.transform.SetParent(root, false);
-                lip.GetComponent<MeshFilter>().sharedMesh = BlockMeshes.ChannelLip(path, s, lipOffset, 2.0f, s < 0 ? "GreyboxLipL" : "GreyboxLipR");
+                float[] offsets = new float[points.Length];
+                for (int i = 0; i < points.Length; i++) offsets[i] = Core.Water.ProceduralRiver.WidthAt(g, points[i].Z) * 0.5f + lipOffset;
+                lip.GetComponent<MeshFilter>().sharedMesh = BlockMeshes.ChannelLip(path, s, offsets, 2.0f, s < 0 ? "GreyboxLipL" : "GreyboxLipR");
                 var lr = lip.GetComponent<MeshRenderer>();
                 lr.sharedMaterials = new[] { grass, earth };
                 lr.shadowCastingMode = ShadowCastingMode.On;
@@ -223,7 +226,7 @@ namespace Downstream.Water
             float dcx = Core.Water.ProceduralRiver.CentreSlope(g, z);
             float tZ = 1f / Mathf.Sqrt(1f + dcx * dcx);
             float lateral = Mathf.Abs((x - cx) * tZ);
-            float halfWidth = g.Width * 0.5f;
+            float halfWidth = Core.Water.ProceduralRiver.WidthAt(g, z) * 0.5f;
             float surface = Core.Water.ProceduralRiver.SurfaceAt(g, distance);
             if (fieldBed > surface + 0.6f) return fieldBed; // a dry rock in the channel
             // Grass takes over as the ramp breaks the surface; stones stay under the water.

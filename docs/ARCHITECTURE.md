@@ -22,7 +22,8 @@ rising pulse wets the floodable banks.
 `ProceduralRiver` generates greybox fields until the editor baker (spline authoring, a compute-shader
 shallow-water solve, hand combing) exists. Its centreline is the sum of two sines (a 40 m swing every
 300 m plus a 10 m wobble every 200 m) for S-bends and chicanes, with the current lane swinging to the
-outside of each bend. Its floodable banks ramp up from the channel floor over
+outside of each bend, and its width breathes (plus or minus 30% every 420 m) so narrows run fast and
+pools run slow by continuity. Its floodable banks ramp up from the channel floor over
 2.5 m to a shelf 0.5 m above the water: a vertical wall at the channel edge grounds boats on a step
 and draws as a 0.5 m sawtooth at grazing angles.
 
@@ -95,9 +96,13 @@ grade (`_RiverBaseSlope`), so only rapids, ledges and the falls break white.
 
 `GreyboxDressing` dresses the valley at runtime from a fixed seed, nothing saved in the scene:
 rolling grass hills behind the bank blocks (a heightfield in river coordinates, so it follows the
-meander), round-canopy and pine trees, rocks, reeds at the waterline, flower clusters in the pop
-colours, and a small story cluster (camp or bunting) every 100 m of bank. Props share a handful of materials each (five canopy greens, three pines) so the
-SRP batcher keeps the draw count down. `WaterTextures` generates tileable ripple normals, foam strokes and pebbles at
+meander), puffy round trees and drooping pines built from a few merged mesh variants (a tree is two
+draws), bushes, rounded rocks, reeds at the waterline, flower clusters in the pop colours, lantern
+posts along the water, cairns on the outside of bends, a bridge to race under, docks with crates, a
+shrine on the hill, and a camp or bunting every 100 m of bank. `Shaders/GreyboxProp.shader` gives
+every prop the design's form shading (lit tops, mid sides, dark undersides) with wrap lighting,
+occlusion, shadows and fog; props share a handful of materials each so the SRP batcher keeps the
+draw count down. Meadow placement is measured from the channel edge, so it follows the breathing width. `WaterTextures` generates tileable ripple normals, foam strokes and pebbles at
 runtime so the repository ships no binary placeholders; painted textures replace them with no shader
 change. `GreyboxSceneBuilder` applies the design doc's rendering rules (warm key from the upper left, a
 sky-driven ambient so shadows take the sky's colour, light linear haze, a small-sun procedural sky,

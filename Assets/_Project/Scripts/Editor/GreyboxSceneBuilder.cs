@@ -35,7 +35,7 @@ namespace Downstream.Editor
         // boats, gear and anything you race for. Materials are physically based, roughness 0.6-0.9 on
         // land; only water shines.
         private static readonly Color Grass = new Color(0.42f, 0.58f, 0.30f);
-        private static readonly Color Earth = new Color(0.56f, 0.44f, 0.32f);
+        private static readonly Color Earth = new Color(0.60f, 0.50f, 0.36f);
         private static readonly Color Rock = new Color(0.52f, 0.51f, 0.48f);
         private static readonly Color Sand = new Color(0.40f, 0.50f, 0.27f); // floodable meadow: darker grass, not beach
         private static readonly Color Stones = new Color(0.55f, 0.53f, 0.47f);
@@ -66,7 +66,9 @@ namespace Downstream.Editor
                 waterShader = litShader;
             }
             var grassMat = EnsureMaterial(TrackDir + "/GreyboxGrass.mat", litShader, Grass, 0.22f);
+            // Bank terrace faces read as shaded grass slopes, not an earth road; earth stays on the channel lip.
             var earthMat = EnsureMaterial(TrackDir + "/GreyboxEarth.mat", litShader, Earth, 0.15f);
+            var slopeMat = EnsureMaterial(TrackDir + "/GreyboxSlope.mat", litShader, new Color(0.36f, 0.50f, 0.26f), 0.2f);
             var rockMat = EnsureMaterial(TrackDir + "/GreyboxRock.mat", litShader, Rock, 0.2f);
             var groundShader = Shader.Find("Downstream/Greybox Ground") ?? litShader;
             var bedMat = EnsureMaterial(TrackDir + "/GreyboxBed.mat", groundShader, Stones, 0.35f);
@@ -93,7 +95,7 @@ namespace Downstream.Editor
             var waterSo = new SerializedObject(waterMesh);
             waterSo.FindProperty("_bedMaterial").objectReferenceValue = bedMat;
             waterSo.ApplyModifiedPropertiesWithoutUndo();
-            waterMesh.BuildBanks(river, grassMat, earthMat, rockMat);
+            waterMesh.BuildBanks(river, grassMat, earthMat, rockMat, slopeMat);
             SaveGeneratedMeshes(water.transform, TrackDir);
             var gizmos = new SerializedObject(water.GetComponent<RiverFieldGizmos>());
             gizmos.FindProperty("_river").objectReferenceValue = river;
@@ -141,19 +143,20 @@ namespace Downstream.Editor
             if (!AssetDatabase.IsValidFolder(dir)) AssetDatabase.CreateFolder(TrackDir, "Dressing");
             var hills = EnsureMaterial(dir + "/Hills.mat", groundShader, Grass, 0.2f);
             if (hills.HasProperty("_GrassColor")) { hills.SetColor("_GrassColor", new Color(0.40f, 0.54f, 0.28f)); hills.SetColor("_StoneColor", Stones); hills.SetColor("_SandColor", Sand); }
+            var propShader = Shader.Find("Downstream/Greybox Prop") ?? litShader;
             var canopies = new[]
             {
-                EnsureMaterial(dir + "/Canopy1.mat", litShader, new Color(0.36f, 0.56f, 0.26f), 0.18f),
-                EnsureMaterial(dir + "/Canopy2.mat", litShader, new Color(0.42f, 0.60f, 0.27f), 0.18f),
-                EnsureMaterial(dir + "/Canopy3.mat", litShader, new Color(0.33f, 0.50f, 0.30f), 0.18f),
-                EnsureMaterial(dir + "/Canopy4.mat", litShader, new Color(0.47f, 0.62f, 0.30f), 0.18f),
-                EnsureMaterial(dir + "/Canopy5.mat", litShader, new Color(0.52f, 0.60f, 0.24f), 0.18f),
+                PropMaterial(dir + "/Canopy1.mat", propShader, new Color(0.34f, 0.54f, 0.25f), new Color(0.56f, 0.74f, 0.33f), new Color(0.20f, 0.34f, 0.18f)),
+                PropMaterial(dir + "/Canopy2.mat", propShader, new Color(0.40f, 0.58f, 0.26f), new Color(0.64f, 0.78f, 0.34f), new Color(0.22f, 0.36f, 0.17f)),
+                PropMaterial(dir + "/Canopy3.mat", propShader, new Color(0.31f, 0.49f, 0.30f), new Color(0.50f, 0.70f, 0.40f), new Color(0.18f, 0.32f, 0.20f)),
+                PropMaterial(dir + "/Canopy4.mat", propShader, new Color(0.46f, 0.60f, 0.28f), new Color(0.70f, 0.80f, 0.36f), new Color(0.26f, 0.38f, 0.18f)),
+                PropMaterial(dir + "/Canopy5.mat", propShader, new Color(0.50f, 0.58f, 0.22f), new Color(0.76f, 0.80f, 0.30f), new Color(0.28f, 0.36f, 0.14f)),
             };
             var pines = new[]
             {
-                EnsureMaterial(dir + "/Pine1.mat", litShader, new Color(0.22f, 0.42f, 0.30f), 0.18f),
-                EnsureMaterial(dir + "/Pine2.mat", litShader, new Color(0.26f, 0.46f, 0.28f), 0.18f),
-                EnsureMaterial(dir + "/Pine3.mat", litShader, new Color(0.20f, 0.38f, 0.26f), 0.18f),
+                PropMaterial(dir + "/Pine1.mat", propShader, new Color(0.20f, 0.40f, 0.30f), new Color(0.36f, 0.58f, 0.40f), new Color(0.12f, 0.26f, 0.20f)),
+                PropMaterial(dir + "/Pine2.mat", propShader, new Color(0.24f, 0.44f, 0.27f), new Color(0.42f, 0.62f, 0.36f), new Color(0.14f, 0.28f, 0.18f)),
+                PropMaterial(dir + "/Pine3.mat", propShader, new Color(0.18f, 0.36f, 0.26f), new Color(0.32f, 0.54f, 0.36f), new Color(0.10f, 0.22f, 0.17f)),
             };
             var flowers = new[]
             {
@@ -174,14 +177,24 @@ namespace Downstream.Editor
             so.FindProperty("_hills").objectReferenceValue = hills;
             SetArray(so.FindProperty("_canopies"), canopies);
             SetArray(so.FindProperty("_pines"), pines);
-            so.FindProperty("_trunk").objectReferenceValue = EnsureMaterial(dir + "/Trunk.mat", litShader, new Color(0.42f, 0.30f, 0.20f), 0.15f);
-            so.FindProperty("_rock").objectReferenceValue = EnsureMaterial(dir + "/Rock.mat", litShader, Rock, 0.2f);
+            so.FindProperty("_trunk").objectReferenceValue = PropMaterial(dir + "/Trunk.mat", propShader, new Color(0.40f, 0.29f, 0.20f), new Color(0.50f, 0.38f, 0.27f), new Color(0.26f, 0.18f, 0.12f));
+            so.FindProperty("_rock").objectReferenceValue = PropMaterial(dir + "/Rock.mat", propShader, new Color(0.50f, 0.50f, 0.48f), new Color(0.68f, 0.68f, 0.64f), new Color(0.30f, 0.31f, 0.32f));
+            so.FindProperty("_plank").objectReferenceValue = EnsureMaterial(dir + "/Plank.mat", litShader, new Color(0.62f, 0.46f, 0.30f), 0.2f);
+            so.FindProperty("_shrine").objectReferenceValue = EnsureMaterial(dir + "/Shrine.mat", litShader, new Color(0.86f, 0.80f, 0.68f), 0.2f);
             so.FindProperty("_reed").objectReferenceValue = EnsureMaterial(dir + "/Reed.mat", litShader, new Color(0.45f, 0.58f, 0.25f), 0.2f);
             SetArray(so.FindProperty("_flowers"), flowers);
             so.FindProperty("_tent").objectReferenceValue = EnsureMaterial(dir + "/Tent.mat", litShader, Tomato, 0.25f);
             so.FindProperty("_post").objectReferenceValue = EnsureMaterial(dir + "/Post.mat", litShader, new Color(0.50f, 0.38f, 0.26f), 0.15f);
             so.FindProperty("_lantern").objectReferenceValue = lantern;
             so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        /// <summary>A three-tone prop material: sides, lit tops and shaded undersides.</summary>
+        private static Material PropMaterial(string path, Shader shader, Color side, Color top, Color under)
+        {
+            var mat = EnsureMaterial(path, shader, side, 0.15f);
+            if (mat.HasProperty("_TopColor")) { mat.SetColor("_TopColor", top); mat.SetColor("_ShadeColor", under); }
+            return mat;
         }
 
         private static void SetArray(SerializedProperty property, Material[] items)

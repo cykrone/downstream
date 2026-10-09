@@ -66,17 +66,33 @@ namespace Downstream.Water
             _greybox.MeanderAmplitude2 = 10f;
             _greybox.MeanderWavelength2 = 200f;
             _greybox.MeanderPhase2 = 0.9f;
+            // The channel breathes: 30 m narrows run fast, 54 m pools run slow (continuity scales the flow).
+            _greybox.WidthVariation = 0.3f;
+            _greybox.WidthWavelength = 420f;
+            _greybox.WidthPhase = 2.0f;
+            _greybox.Width = 42f;
             _greybox.WaterfallDistance = 700f;
             _greybox.WaterfallDrop = 6f;
             _greybox.FloodableBank = 12f;
             _greybox.Boulders = new[]
             {
                 new RiverBoulder { Distance = 220f, Lateral = 6f, Radius = 2f, EddyLength = 12f, EddyFlow = 1.5f },
+                new RiverBoulder { Distance = 520f, Lateral = -5f, Radius = 2.2f, EddyLength = 12f, EddyFlow = 1.4f },
+                new RiverBoulder { Distance = 860f, Lateral = 8f, Radius = 2.8f, EddyLength = 16f, EddyFlow = 1.6f },
                 new RiverBoulder { Distance = 1150f, Lateral = -7f, Radius = 2.5f, EddyLength = 14f, EddyFlow = 1.5f },
+                new RiverBoulder { Distance = 1380f, Lateral = 4f, Radius = 1.8f, EddyLength = 10f, EddyFlow = 1.3f },
             };
             // The hole sits on river left; the tongue down the right is the clean line.
-            _greybox.Ledges = new[] { new RiverLedge { Distance = 450f, Drop = 0.4f, HoleLength = 4f, Lateral = -8f, Width = 10f } };
-            _greybox.WaveTrains = new[] { new StandingWaveTrain { Distance = 950f, Count = 5, Wavelength = 12f, Height = 0.7f } };
+            _greybox.Ledges = new[]
+            {
+                new RiverLedge { Distance = 450f, Drop = 0.4f, HoleLength = 4f, Lateral = -8f, Width = 10f },
+                new RiverLedge { Distance = 1020f, Drop = 0.5f, HoleLength = 5f, Lateral = 7f, Width = 12f },
+            };
+            _greybox.WaveTrains = new[]
+            {
+                new StandingWaveTrain { Distance = 950f, Count = 5, Wavelength = 12f, Height = 0.7f },
+                new StandingWaveTrain { Distance = 1250f, Count = 4, Wavelength = 14f, Height = 0.9f },
+            };
         }
     }
 }

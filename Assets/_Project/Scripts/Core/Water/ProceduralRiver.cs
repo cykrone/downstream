@@ -61,6 +61,10 @@ namespace Downstream.Core.Water
         public float MeanderAmplitude2;
         public float MeanderWavelength2;
         public float MeanderPhase2;
+        /// <summary>Fraction the width swells and narrows by along the course (0.3 = plus or minus 30%). Narrows run faster.</summary>
+        public float WidthVariation;
+        public float WidthWavelength;
+        public float WidthPhase;
         /// <summary>Waterfall position along the river (metres); negative disables it.</summary>
         public float WaterfallDistance;
         public float WaterfallDrop;
@@ -85,6 +89,9 @@ namespace Downstream.Core.Water
             MeanderAmplitude2 = 0f,
             MeanderWavelength2 = 1f,
             MeanderPhase2 = 0f,
+            WidthVariation = 0f,
+            WidthWavelength = 1f,
+            WidthPhase = 0f,
             WaterfallDistance = -1f,
             WaterfallDrop = 0f,
             FloodableBank = 0f,
@@ -109,6 +116,13 @@ namespace Downstream.Core.Water
             if (s.MeanderAmplitude2 > 0f && s.MeanderWavelength2 > 0f)
                 x += s.MeanderAmplitude2 * SimMath.Sin(2f * SimMath.Pi * z / s.MeanderWavelength2 + s.MeanderPhase2);
             return x;
+        }
+
+        /// <summary>Channel width at a point along the river: pools swell, narrows pinch.</summary>
+        public static float WidthAt(in ProceduralRiverSettings s, float z)
+        {
+            if (s.WidthVariation <= 0f || s.WidthWavelength <= 0f) return s.Width;
+            return s.Width * (1f + s.WidthVariation * SimMath.Sin(2f * SimMath.Pi * z / s.WidthWavelength + s.WidthPhase));
         }
 
         /// <summary>dCentreX/dz: the centreline's sideways slope.</summary>
@@ -188,7 +202,7 @@ namespace Downstream.Core.Water
 
         public static RiverField Build(ProceduralRiverSettings s, float cellSize = RiverField.DefaultCellSize)
         {
-            float halfSpan = s.Width * 0.5f + s.FloodableBank + s.MeanderAmplitude + s.MeanderAmplitude2 + 4f;
+            float halfSpan = s.Width * (1f + s.WidthVariation) * 0.5f + s.FloodableBank + s.MeanderAmplitude + s.MeanderAmplitude2 + 4f;
             float originX = -halfSpan;
             float originZ = -8f;
             float tileSize = cellSize * RiverField.TileTexels;
@@ -196,12 +210,14 @@ namespace Downstream.Core.Water
             int tilesZ = (int)System.MathF.Ceiling((s.Length + 16f) / tileSize);
             var field = new RiverField(originX, originZ, tilesX, tilesZ, cellSize);
 
-            float halfWidth = s.Width * 0.5f;
             int nx = field.TexelCountX, nz = field.TexelCountZ;
             for (int iz = 0; iz < nz; iz++)
             {
                 field.TexelCentre(0, iz, out _, out float z);
                 float distance = SimMath.Clamp(z, 0f, s.Length);
+                float halfWidth = WidthAt(s, z) * 0.5f;
+                // The same water through a narrower channel runs faster (continuity).
+                float widthFlow = s.Width / SimMath.Max(WidthAt(s, z), 1f);
                 float cx = CentreX(s, z);
                 float dcx = CentreSlope(s, z);
                 // Unit tangent of the centreline and the outward side of the current bend.
@@ -229,7 +245,7 @@ namespace Downstream.Core.Water
                         float u = abs / halfWidth;
                         bed = surface - s.Depth * (1f - 0.6f * u * u);
                         float bankFalloff = 1f - 0.5f * u * u;
-                        flow = s.BaseFlow * bankFalloff;
+                        flow = s.BaseFlow * bankFalloff * widthFlow;
                         if (SimMath.Abs(lateral - laneOffset) <= s.LaneWidth * 0.5f)
                         {
                             flow += s.LaneExtraFlow;

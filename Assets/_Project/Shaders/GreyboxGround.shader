@@ -30,10 +30,12 @@ Shader "Downstream/Greybox Ground"
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #pragma multi_compile _ _CLUSTER_LIGHT_LOOP
+            #pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
             #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Fog.hlsl"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/AmbientOcclusion.hlsl"
 
             TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap);
             TEXTURE2D(_DetailMap); SAMPLER(sampler_DetailMap);
@@ -94,8 +96,14 @@ Shader "Downstream/Greybox Ground"
                 float3 N = normalize(IN.normalWS);
                 Light light = GetMainLight(TransformWorldToShadowCoord(IN.positionWS));
                 float shadow = light.shadowAttenuation * light.distanceAttenuation;
-                float3 ambient = SampleSHPixel(half3(0, 0, 0), N);
-                float3 colour = albedo * (ambient + light.color * shadow * saturate(dot(N, light.direction)));
+                float aoDirect = 1.0, aoIndirect = 1.0;
+                #if defined(_SCREEN_SPACE_OCCLUSION)
+                    AmbientOcclusionFactor ao = GetScreenSpaceAmbientOcclusion(GetNormalizedScreenSpaceUV(IN.positionCS));
+                    aoDirect = ao.directAmbientOcclusion;
+                    aoIndirect = ao.indirectAmbientOcclusion;
+                #endif
+                float3 ambient = SampleSHPixel(half3(0, 0, 0), N) * aoIndirect;
+                float3 colour = albedo * (ambient + light.color * shadow * saturate(dot(N, light.direction)) * aoDirect);
                 colour = MixFog(colour, IN.fogFactor);
                 return half4(colour, 1);
             }
@@ -131,6 +139,24 @@ Shader "Downstream/Greybox Ground"
             {
                 return IN.positionCS.z;
             }
+            ENDHLSL
+        }
+        Pass
+        {
+            Name "DepthNormals"
+            Tags { "LightMode" = "DepthNormals" }
+            ZWrite On
+            Cull Back
+
+            HLSLPROGRAM
+            #pragma target 4.5
+            #pragma vertex DNVert
+            #pragma fragment DNFrag
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; };
+            struct Varyings { float4 positionCS : SV_POSITION; float3 normalWS : TEXCOORD0; };
+            Varyings DNVert(Attributes IN) { Varyings OUT; OUT.positionCS = TransformObjectToHClip(IN.positionOS.xyz); OUT.normalWS = TransformObjectToWorldNormal(IN.normalOS); return OUT; }
+            half4 DNFrag(Varyings IN) : SV_Target { return half4(normalize(IN.normalWS), 0); }
             ENDHLSL
         }
     }
