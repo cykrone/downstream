@@ -43,7 +43,7 @@ and online.
 Assets/_Project/
   Scripts/
     Core/       Downstream.Core     pure C#, no UnityEngine: water, boat sim, race, items, AI, prediction
-    Runtime/    Downstream.Runtime  MonoBehaviours: race director, views, cameras, input, greybox water
+    Runtime/    Downstream.Runtime  MonoBehaviours: race director, views, cameras, input, greybox water, block kit and set dressing
     Editor/     Downstream.Editor   greybox scene builder, asset provenance database and build gate
   Shaders/                          River Field HLSL sampler, the river water shader, the GPU parity kernel
   Tests/EditMode/                   NUnit tests for the core (run in Unity and with dotnet)

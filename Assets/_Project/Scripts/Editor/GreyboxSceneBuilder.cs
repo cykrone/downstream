@@ -99,6 +99,10 @@ namespace Downstream.Editor
             gizmos.FindProperty("_river").objectReferenceValue = river;
             gizmos.ApplyModifiedPropertiesWithoutUndo();
 
+            // Set dressing: hills, trees, rocks, reeds, flowers, story props and clouds, built at runtime.
+            var dressing = new GameObject("Greybox Dressing", typeof(GreyboxDressing));
+            WireDressing(dressing.GetComponent<GreyboxDressing>(), river, groundShader, litShader);
+
             var itemView = new GameObject("Items", typeof(ItemWorldView));
             var itemSo = new SerializedObject(itemView.GetComponent<ItemWorldView>());
             itemSo.FindProperty("_material").objectReferenceValue = itemMat;
@@ -128,6 +132,63 @@ namespace Downstream.Editor
             AddToBuildSettings(scenePath);
             AssetDatabase.SaveAssets();
             Debug.Log($"[Downstream] Greybox race scene created at {scenePath}. Press Play: keyboard or any gamepad drives boat 1.");
+        }
+
+        /// <summary>Creates the dressing's shared materials (a few tints each so the SRP batcher keeps the draw count down) and assigns them.</summary>
+        private static void WireDressing(GreyboxDressing dressing, RiverDefinition river, Shader groundShader, Shader litShader)
+        {
+            string dir = TrackDir + "/Dressing";
+            if (!AssetDatabase.IsValidFolder(dir)) AssetDatabase.CreateFolder(TrackDir, "Dressing");
+            var hills = EnsureMaterial(dir + "/Hills.mat", groundShader, Grass, 0.2f);
+            if (hills.HasProperty("_GrassColor")) { hills.SetColor("_GrassColor", new Color(0.40f, 0.54f, 0.28f)); hills.SetColor("_StoneColor", Stones); hills.SetColor("_SandColor", Sand); }
+            var canopies = new[]
+            {
+                EnsureMaterial(dir + "/Canopy1.mat", litShader, new Color(0.36f, 0.56f, 0.26f), 0.18f),
+                EnsureMaterial(dir + "/Canopy2.mat", litShader, new Color(0.42f, 0.60f, 0.27f), 0.18f),
+                EnsureMaterial(dir + "/Canopy3.mat", litShader, new Color(0.33f, 0.50f, 0.30f), 0.18f),
+                EnsureMaterial(dir + "/Canopy4.mat", litShader, new Color(0.47f, 0.62f, 0.30f), 0.18f),
+                EnsureMaterial(dir + "/Canopy5.mat", litShader, new Color(0.52f, 0.60f, 0.24f), 0.18f),
+            };
+            var pines = new[]
+            {
+                EnsureMaterial(dir + "/Pine1.mat", litShader, new Color(0.22f, 0.42f, 0.30f), 0.18f),
+                EnsureMaterial(dir + "/Pine2.mat", litShader, new Color(0.26f, 0.46f, 0.28f), 0.18f),
+                EnsureMaterial(dir + "/Pine3.mat", litShader, new Color(0.20f, 0.38f, 0.26f), 0.18f),
+            };
+            var flowers = new[]
+            {
+                EnsureMaterial(dir + "/FlowerSunflower.mat", litShader, Sunflower, 0.3f),
+                EnsureMaterial(dir + "/FlowerTomato.mat", litShader, Tomato, 0.3f),
+                EnsureMaterial(dir + "/FlowerBlossom.mat", litShader, new Color(0.96f, 0.62f, 0.76f), 0.3f),
+                EnsureMaterial(dir + "/FlowerSky.mat", litShader, SkyBlue, 0.3f),
+            };
+            var lantern = EnsureMaterial(dir + "/Lantern.mat", litShader, new Color(1f, 0.85f, 0.45f), 0.4f);
+            if (lantern.HasProperty("_EmissionColor"))
+            {
+                lantern.EnableKeyword("_EMISSION");
+                lantern.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+                lantern.SetColor("_EmissionColor", new Color(1f, 0.75f, 0.35f) * 2.5f);
+            }
+            var so = new SerializedObject(dressing);
+            so.FindProperty("_river").objectReferenceValue = river;
+            so.FindProperty("_hills").objectReferenceValue = hills;
+            SetArray(so.FindProperty("_canopies"), canopies);
+            SetArray(so.FindProperty("_pines"), pines);
+            so.FindProperty("_trunk").objectReferenceValue = EnsureMaterial(dir + "/Trunk.mat", litShader, new Color(0.42f, 0.30f, 0.20f), 0.15f);
+            so.FindProperty("_rock").objectReferenceValue = EnsureMaterial(dir + "/Rock.mat", litShader, Rock, 0.2f);
+            so.FindProperty("_reed").objectReferenceValue = EnsureMaterial(dir + "/Reed.mat", litShader, new Color(0.45f, 0.58f, 0.25f), 0.2f);
+            SetArray(so.FindProperty("_flowers"), flowers);
+            so.FindProperty("_tent").objectReferenceValue = EnsureMaterial(dir + "/Tent.mat", litShader, Tomato, 0.25f);
+            so.FindProperty("_post").objectReferenceValue = EnsureMaterial(dir + "/Post.mat", litShader, new Color(0.50f, 0.38f, 0.26f), 0.15f);
+            so.FindProperty("_lantern").objectReferenceValue = lantern;
+            so.FindProperty("_cloud").objectReferenceValue = EnsureMaterial(dir + "/Cloud.mat", litShader, new Color(0.97f, 0.97f, 0.99f), 0.05f);
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void SetArray(SerializedProperty property, Material[] items)
+        {
+            property.arraySize = items.Length;
+            for (int i = 0; i < items.Length; i++) property.GetArrayElementAtIndex(i).objectReferenceValue = items[i];
         }
 
         /// <summary>Rendering rules: one warm key sun from the upper left, a cool sky fill, teal-tinted shadow, light haze.</summary>

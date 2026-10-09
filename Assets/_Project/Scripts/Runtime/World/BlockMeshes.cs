@@ -176,6 +176,61 @@ namespace Downstream.World
             else b.AddQuad(a, c, d, e, n.normalized);
         }
 
+        /// <summary>A low-poly, flat-shaded sphere: the round canopies, flowers and cloud blobs of the kit.</summary>
+        public static Mesh FlatSphere(float radius, int rings, int segments, string name)
+        {
+            var b = new MeshBuilder();
+            for (int r = 0; r < rings; r++)
+            {
+                float t0 = Mathf.PI * r / rings, t1 = Mathf.PI * (r + 1) / rings;
+                for (int s = 0; s < segments; s++)
+                {
+                    float p0 = 2f * Mathf.PI * s / segments, p1 = 2f * Mathf.PI * (s + 1) / segments;
+                    Vector3 P(float t, float p) => new Vector3(Mathf.Sin(t) * Mathf.Cos(p), Mathf.Cos(t), Mathf.Sin(t) * Mathf.Sin(p)) * radius;
+                    var a = P(t0, p0); var c = P(t0, p1); var d = P(t1, p1); var e = P(t1, p0);
+                    var outward = (a + c + d + e).normalized;
+                    if (r == 0) b.AddTriangleOutward(a, d, e, outward);
+                    else if (r == rings - 1) b.AddTriangleOutward(a, c, d, outward);
+                    else AddQuadOutward(b, a, c, d, e, outward);
+                }
+            }
+            return b.ToMesh(name);
+        }
+
+        /// <summary>A flat-shaded cone standing on y = 0: pine tiers and reeds.</summary>
+        public static Mesh Cone(float radius, float height, int segments, string name)
+        {
+            var b = new MeshBuilder();
+            var apex = new Vector3(0f, height, 0f);
+            for (int s = 0; s < segments; s++)
+            {
+                float p0 = 2f * Mathf.PI * s / segments, p1 = 2f * Mathf.PI * (s + 1) / segments;
+                var a = new Vector3(Mathf.Cos(p0), 0f, Mathf.Sin(p0)) * radius;
+                var c = new Vector3(Mathf.Cos(p1), 0f, Mathf.Sin(p1)) * radius;
+                b.AddTriangleOutward(a, c, apex, (a + c) * 0.5f + Vector3.up * radius);
+                b.AddTriangleOutward(a, c, Vector3.zero, Vector3.down);
+            }
+            return b.ToMesh(name);
+        }
+
+        /// <summary>A flat-shaded cylinder standing on y = 0 with unit height: trunks and posts (scale y to the height).</summary>
+        public static Mesh Cylinder(float radius, float height, int segments, string name)
+        {
+            var b = new MeshBuilder();
+            for (int s = 0; s < segments; s++)
+            {
+                float p0 = 2f * Mathf.PI * s / segments, p1 = 2f * Mathf.PI * (s + 1) / segments;
+                var a = new Vector3(Mathf.Cos(p0), 0f, Mathf.Sin(p0)) * radius;
+                var c = new Vector3(Mathf.Cos(p1), 0f, Mathf.Sin(p1)) * radius;
+                var d = c + Vector3.up * height;
+                var e = a + Vector3.up * height;
+                AddQuadOutward(b, a, c, d, e, (a + c) * 0.5f);
+                b.AddTriangleOutward(e, d, Vector3.up * height, Vector3.up);
+                b.AddTriangleOutward(a, c, Vector3.zero, Vector3.down);
+            }
+            return b.ToMesh(name);
+        }
+
         /// <summary>Flat-shaded mesh accumulator: every face gets its own vertices.</summary>
         public sealed class MeshBuilder
         {

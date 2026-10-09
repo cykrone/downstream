@@ -24,6 +24,7 @@ namespace Downstream.Water
         private static readonly int RippleNormalId = Shader.PropertyToID("_RippleNormal");
         private static readonly int FoamTexId = Shader.PropertyToID("_FoamTex");
         private static readonly int BaseMapId = Shader.PropertyToID("_BaseMap");
+        private static readonly int BaseSlopeId = Shader.PropertyToID("_RiverBaseSlope");
 
         private RiverFieldGpu _gpu;
         private MeshRenderer _bed;
@@ -49,7 +50,7 @@ namespace Downstream.Water
             {
                 var bank = new GameObject(s < 0 ? "Bank L" : "Bank R", typeof(MeshFilter), typeof(MeshRenderer));
                 bank.transform.SetParent(root, false);
-                bank.GetComponent<MeshFilter>().sharedMesh = BlockMeshes.BankStrip(path, s, innerOffset, 4f, 3.2f, 0.15f, s < 0 ? "GreyboxBankL" : "GreyboxBankR");
+                bank.GetComponent<MeshFilter>().sharedMesh = BlockMeshes.BankStrip(path, s, innerOffset, 4f, 2.4f, 0.15f, s < 0 ? "GreyboxBankL" : "GreyboxBankR");
                 var r = bank.GetComponent<MeshRenderer>();
                 r.sharedMaterials = new[] { grass, earth };
                 r.shadowCastingMode = ShadowCastingMode.On;
@@ -121,6 +122,7 @@ namespace Downstream.Water
             _gpu ??= new RiverFieldGpu();
             _gpu.Upload(water);
             RiverFieldGpu.SetRaceTime(0f);
+            Shader.SetGlobalFloat(BaseSlopeId, river != null ? river.Greybox.Gradient : 0f);
 
             var field = water.Field;
             float minX = field.OriginX, minZ = field.OriginZ;
@@ -250,7 +252,7 @@ namespace Downstream.Water
             mesh.SetVertices(vertices);
             mesh.SetUVs(0, uv);
             var colours = new Color[vertices.Length];
-            for (int i = 0; i < colours.Length; i++) colours[i] = new Color(grass[i], 0f, 0f, 1f);
+            for (int i = 0; i < colours.Length; i++) colours[i] = new Color(grass[i], 0.5f, 0f, 1f);
             mesh.SetColors(colours);
             mesh.SetTriangles(bedTris, 0);
             mesh.RecalculateNormals();

@@ -56,6 +56,7 @@ Shader "Downstream/Greybox Ground"
                 float3 normalWS : TEXCOORD1;
                 float2 uv : TEXCOORD2;
                 float grass : TEXCOORD3;
+                float tint : TEXCOORD5;
                 float fogFactor : TEXCOORD4;
             };
 
@@ -67,6 +68,7 @@ Shader "Downstream/Greybox Ground"
                 OUT.normalWS = TransformObjectToWorldNormal(IN.normalOS);
                 OUT.uv = IN.uv;
                 OUT.grass = IN.color.r;
+                OUT.tint = IN.color.g;
                 OUT.fogFactor = ComputeFogFactor(OUT.positionCS.z);
                 return OUT;
             }
@@ -79,6 +81,8 @@ Shader "Downstream/Greybox Ground"
                 // A pale strip of sand where the stones give way to grass: the waterline of the reference banks.
                 float rim = 1.0 - abs(g * 2.0 - 1.0);
                 albedo = lerp(albedo, _SandColor.rgb, rim * rim * 0.7);
+                // Vertex G varies the grass a few percent so a field never reads as one flat tile.
+                albedo *= 1.0 + (IN.tint - 0.5) * 0.14;
                 float3 N = normalize(IN.normalWS);
                 Light light = GetMainLight(TransformWorldToShadowCoord(IN.positionWS));
                 float shadow = light.shadowAttenuation * light.distanceAttenuation;

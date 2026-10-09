@@ -223,7 +223,8 @@ Shader "Downstream/River Water"
                 float boilB = SAMPLE_TEXTURE2D(_FoamTex, sampler_FoamTex, float2(buv.y, -buv.x) * 1.27 + float2(t * 0.7, 0.0)).r;
                 float boil = saturate(boilA * 0.5 + boilB * 0.5 + boilA * boilB);
 
-                float slopeMag = length(IN.staticSlopeAndWet.xy);
+                // Rapids and falls are steeper than the river's own grade; the grade itself is not whitewater.
+                float slopeMag = max(0.0, length(IN.staticSlopeAndWet.xy) - _RiverBaseSlope * 1.1);
                 float cover = 0.0;
                 cover += 0.75 * smoothstep(_FoamFlowStart, _FoamFlowFull, speed);
                 cover += 0.8 * smoothstep(_FoamSlope, _FoamSlope * 2.5, slopeMag) * (0.55 + 0.45 * strokes);

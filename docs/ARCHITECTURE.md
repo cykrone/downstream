@@ -85,7 +85,15 @@ along the centreline, and the low grass-lipped block that edges the channel. The
 floodable meadow are one mesh under `Shaders/GreyboxGround.shader`, which blends stones into grass by
 vertex colour with a pale sand rim at the waterline (the bank treatment of the Animal Crossing
 reference), so the shoreline is never cut along the mesh grid. The greybox river runs on a 15 degree
-grade so it visibly flows downhill. `WaterTextures` generates tileable ripple normals, foam strokes and pebbles at
+grade so it visibly flows downhill; the water shader judges whitewater on slope in excess of that
+grade (`_RiverBaseSlope`), so only rapids, ledges and the falls break white.
+
+`GreyboxDressing` dresses the valley at runtime from a fixed seed, nothing saved in the scene:
+rolling grass hills behind the bank blocks (a heightfield in river coordinates, so it follows the
+meander), round-canopy and pine trees, rocks, reeds at the waterline, flower clusters in the pop
+colours, a small story cluster (camp or bunting) every 100 m of bank, and chunky clouds that throw
+shadows on the water. Props share a handful of materials each (five canopy greens, three pines) so the
+SRP batcher keeps the draw count down. `WaterTextures` generates tileable ripple normals, foam strokes and pebbles at
 runtime so the repository ships no binary placeholders; painted textures replace them with no shader
 change. `GreyboxSceneBuilder` applies the design doc's rendering rules (warm key from the upper left,
 cool trilight ambient so shadows read teal, light linear haze, a small-sun procedural sky, ACES

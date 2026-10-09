@@ -37,6 +37,8 @@ float4 _RiverTideB; // highLevel, ebbFlowScale, floodFlowScale, 0
 int _RiverWaveCount;
 int _RiverFloodCount;
 float _RiverRaceTime;
+// Mean downhill grade of the river (rise per metre); whitewater is judged on slope in excess of it.
+float _RiverBaseSlope;
 
 struct RiverStaticSample
 {
