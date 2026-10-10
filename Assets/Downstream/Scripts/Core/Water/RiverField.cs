@@ -18,6 +18,11 @@ namespace Downstream.Core.Water
         public readonly float[] BedHeight;
         public readonly float[] RiverDistance;
         public readonly byte[] Features;
+        /// <summary>
+        /// Signed offset from the centre of the current lane in lane half-widths: 0 on the fast line,
+        /// +-1 at its edges, larger outside (clamped to +-4). Readability only: the sim never reads it.
+        /// </summary>
+        public readonly float[] LaneOffset;
 
         public RiverFieldTile(int texelCount)
         {
@@ -27,6 +32,7 @@ namespace Downstream.Core.Water
             BedHeight = new float[texelCount];
             RiverDistance = new float[texelCount];
             Features = new byte[texelCount];
+            LaneOffset = new float[texelCount];
             // Untouched texels are dry land: the bed sits far above any surface.
             for (int i = 0; i < texelCount; i++)
             {
@@ -46,6 +52,8 @@ namespace Downstream.Core.Water
         public float FlowZ;
         public float RiverDistance;
         public WaterFeature Features;
+        /// <summary>Offset from the current lane's centre in lane half-widths (see <see cref="RiverFieldTile.LaneOffset"/>).</summary>
+        public float LaneOffset;
     }
 
     /// <summary>
@@ -109,7 +117,7 @@ namespace Downstream.Core.Water
 
         /// <summary>Writes one texel, creating its tile if needed. Used by the baker and by tests.</summary>
         public void SetTexel(int ix, int iz, float surfaceHeight, float bedHeight, float flowX, float flowZ,
-            float riverDistance, WaterFeature features)
+            float riverDistance, WaterFeature features, float laneOffset = 0f)
         {
             int tx = ix / TileTexels, tz = iz / TileTexels;
             var tile = GetOrCreateTile(tx, tz);
@@ -120,6 +128,7 @@ namespace Downstream.Core.Water
             tile.FlowZ[i] = flowZ;
             tile.RiverDistance[i] = riverDistance;
             tile.Features[i] = (byte)features;
+            tile.LaneOffset[i] = laneOffset;
         }
 
         /// <summary>World position of a texel centre.</summary>
@@ -171,6 +180,7 @@ namespace Downstream.Core.Water
                 s.FlowX += tile.FlowX[i] * w;
                 s.FlowZ += tile.FlowZ[i] * w;
                 s.RiverDistance += tile.RiverDistance[i] * w;
+                s.LaneOffset += tile.LaneOffset[i] * w;
                 if (w > bestW)
                 {
                     bestW = w;
@@ -186,6 +196,7 @@ namespace Downstream.Core.Water
             s.FlowX *= inv;
             s.FlowZ *= inv;
             s.RiverDistance *= inv;
+            s.LaneOffset *= inv;
             s.HasData = true;
             return s;
         }

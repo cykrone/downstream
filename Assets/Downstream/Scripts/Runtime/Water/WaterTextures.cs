@@ -107,7 +107,11 @@ namespace Downstream.Water
         }
 
         /// <summary>Soft, tileable mottling in R (0..1) for breaking up flat grass and ground colours.</summary>
-        /// <summary>Spiral foam arms on a clear disc: the whirlpool, spun by rotating the mesh.</summary>
+        /// <summary>
+        /// The whirlpool: spiral foam arms winding counter-clockwise into a dark eye, with three bold arrow
+        /// heads on the rim that point the way the water turns, spun by rotating the mesh. The arrows are
+        /// the gameplay read: enter with them and the swirl slings you on, cut against them and you spin.
+        /// </summary>
         public static Texture2D SwirlTexture(int size)
         {
             var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, false) { name = "Swirl", wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
@@ -118,11 +122,28 @@ namespace Downstream.Water
                 float u = (x + 0.5f) / size * 2f - 1f, v = (y + 0.5f) / size * 2f - 1f;
                 float r = Mathf.Sqrt(u * u + v * v);
                 float ang = Mathf.Atan2(v, u);
-                float arms = 0.5f + 0.5f * Mathf.Sin(ang * 3f + r * 11f);
+                // Arms wound the way the mesh spins (angle grows counter-clockwise seen from above).
+                float arms = 0.5f + 0.5f * Mathf.Sin(ang * 3f - r * 11f);
                 float a = Mathf.Pow(Mathf.Clamp01(arms), 2.2f) * Mathf.Clamp01(1f - r) * Mathf.Clamp01(r * 4f);
                 a *= 0.4f + 0.6f * Mathf.Clamp01(1f - r); // denser at the eye
-                byte c = (byte)(Mathf.Clamp01(0.85f + 0.15f * a) * 255f);
-                px[y * size + x] = new Color32(c, (byte)Mathf.Min(255, c + 6), 255, (byte)(a * 255f));
+                // The eye: a dark pit of water at the centre, so the funnel reads before the foam does.
+                float eye = Mathf.Clamp01(1f - r / 0.22f);
+                // Rim arrows: chevrons 0.55 rad long whose two arms open behind the tip, pointing along +angle.
+                float arrow = 0f;
+                for (int k = 0; k < 3; k++)
+                {
+                    float tip = k * (2f * Mathf.PI / 3f);
+                    float behind = Mathf.Repeat(tip - ang, 2f * Mathf.PI); // how far this pixel sits behind the tip
+                    if (behind > 0.55f) continue;
+                    float spread = behind * 0.28f; // the arms fan out with distance from the tip
+                    float dr = Mathf.Abs(Mathf.Abs(r - 0.8f) - spread);
+                    arrow = Mathf.Max(arrow, Mathf.Clamp01(1f - dr / 0.035f) * Mathf.Clamp01(1.4f - r));
+                }
+                float foam = Mathf.Clamp01(a + arrow);
+                float alpha = Mathf.Clamp01(foam + eye * 0.75f);
+                float bright = Mathf.Lerp(0.18f, 0.98f, foam) * (1f - eye * 0.85f);
+                byte c = (byte)(Mathf.Clamp01(bright) * 255f);
+                px[y * size + x] = new Color32(c, (byte)Mathf.Min(255, c + 8), (byte)Mathf.Min(255, c + 30 + (int)(eye * 60f)), (byte)(alpha * 255f));
             }
             tex.SetPixels32(px);
             tex.Apply(true, true);

@@ -70,14 +70,14 @@ namespace Downstream.Water
             {
                 name = "RiverTilesA", filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp,
             };
-            TilesB = new Texture2DArray(texels, texels, slices, TextureFormat.RGFloat, false, true)
+            TilesB = new Texture2DArray(texels, texels, slices, TextureFormat.RGBAFloat, false, true)
             {
                 name = "RiverTilesB", filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp,
             };
 
             int perTile = texels * texels;
             var a = new float[perTile * 4];
-            var b = new float[perTile * 2];
+            var b = new float[perTile * 4];
             int s = 0;
             for (int tz = 0; tz < field.TilesZ; tz++)
             for (int tx = 0; tx < field.TilesX; tx++)
@@ -89,8 +89,10 @@ namespace Downstream.Water
                     a[i * 4 + 1] = tile.FlowZ[i];
                     a[i * 4 + 2] = tile.SurfaceHeight[i];
                     a[i * 4 + 3] = tile.BedHeight[i];
-                    b[i * 2 + 0] = tile.RiverDistance[i];
-                    b[i * 2 + 1] = tile.Features[i];
+                    b[i * 4 + 0] = tile.RiverDistance[i];
+                    b[i * 4 + 1] = tile.Features[i];
+                    b[i * 4 + 2] = tile.LaneOffset[i];
+                    b[i * 4 + 3] = 0f;
                 }
                 TilesA.SetPixelData(a, 0, s);
                 TilesB.SetPixelData(b, 0, s);

@@ -42,7 +42,11 @@ and draws as a 0.5 m sawtooth at grazing angles.
 - PhysX only answers collision queries (`PhysicsBoatCollider`); `Physics.simulationMode` is Script.
   The collider reports the closing speed into the hardest contact; past `WallHitSpeed` the sim takes
   speed off, wallows the hull for a moment and drops any drift (`HitWall`), while glancing contact
-  still slides along the bank with a small rebound (`WallRestitution`).
+  still slides along the bank with a small rebound (`WallRestitution`). The bank colliders
+  (`GreyboxWaterMesh.BuildBanks`) are a chain of boxes 1.2 m outside the channel edge, following the
+  breathing width on the line square to the flow, so a boat meets the wall while its hull is still
+  afloat in the shallows and bounces back into the channel; walls at a fixed offset let boats run
+  up the dry meadow and be respawned as stranded.
 - Handling trade-offs that make the course a course: keel turning scrubs speed (`TurnScrub`) and
   loosens with speed (`TurnSpeedFalloff`), so the drift, with its charge tiers and boost, is the fast
   way round a bend; eddies add forward drag on top of their reversed flow; the greybox river runs a
@@ -66,7 +70,10 @@ the shader draws is the one that moves the boat:
 - **Eddy**: upstream flow plus a turn-rate multiplier, for the 120 degree pivot.
 - **Hydraulic hole**: holds the hull for up to 1.5 s (a hop breaks out; boofing the ledge clears it).
 - **Crest**: the downslope face holds speed without throttle and launches hops higher.
-- **Current lane**: faster flow, faster drift charge, and the wake slot that drafting needs.
+- **Current lane**: faster flow, faster drift charge, and the wake slot that drafting needs. Crossing
+  into it at speed also surges the boat for `LaneEntryBoost` seconds (`EnteredLane`, with a 6 s
+  cooldown so an eddy cutting the lane is not a new find): the lane's extra flow alone is a few per
+  cent of top speed and went unnoticed, and kart racers make their fast strips kick.
 
 Wakes and bumps are boat-to-boat, so they live in `RaceSimulation`: wake slot and rough edges,
 then capsule contacts with mass from the Weight stat.
@@ -110,8 +117,12 @@ boat to a mistake-free Expert driver.
 `Shaders/RiverWater.shader` (URP, Forward+) draws the water from the River Field alone: the vertex
 stage lifts a flat 1 m grid to the sampled surface (so floods and waves move the mesh), and the
 fragment stage re-samples the field per pixel for depth, flow and the feature mask. Ripple normals
-and foam strokes are advected by the flow vector with Valve's two-phase flow map; the current lane
-stretches them into long streaks. Depth tint is Beer-Lambert absorption of the refracted opaque
+and foam strokes are advected by the flow vector with Valve's two-phase flow map, stretched along the
+flow in proportion to its speed, so a narrows reads as rushing and a pool as still. The field bakes a
+lane-offset channel (signed distance from the current lane's centre in lane half-widths, readability
+only); the shader uses it for a clean lane edge and for bright chevrons that sweep downstream with
+their tips on the fast line, the dash-panel language of kart racers. Slack water sits dull and dark,
+eddies darker still with foam flecks drifting back upstream. Depth tint is Beer-Lambert absorption of the refracted opaque
 texture (the stone bed under the channel), lit by one warm key with cool sky fill and a stylized sky
 fresnel. Foam follows the readability grammar: eddy lines are a seam wherever the four blended texels
 disagree on the Eddy bit, holes are a counter-scrolling boil, crests and the waterfall lip break
@@ -162,7 +173,8 @@ outside of a slide coloured by tier, a boost plume and a landing splash, all thr
 `Shaders/GreyboxSpray.shader` (unlit, alpha-blended, fogged). `ChaseCamera` widens its field of view
 with speed as well as boost. `ItemWorldView` shows pickups as flagged floats on a ring, mines as
 spiked spheres, logs as capped trunks, pikes as finned bodies and whirlpools as a spinning disc with
-spiral foam arms.
+spiral foam arms winding into a dark eye and three arrow heads on the rim showing the way the water
+turns (ride with the arrows and the swirl slings you on; cut against them and you spin).
 
 Under `Assets/Downstream/Art/Vendor` sit two CC0 packs, tracked with Git LFS: the Stylized Nature
 MegaKit (Quaternius; 68 models of trees, pines, bushes, rocks, grass, flowers and mushrooms with
@@ -192,7 +204,9 @@ continues; beyond the built hills the land climbs toward eye level with rolling 
 that has dropped far below its start the horizon is still land dissolving into fog and never the sky's
 lower half; the ground shader fades its tiling to the palette colour with distance so no grid shows), puffy round trees and drooping pines built from a few merged mesh variants (a tree is two
 draws), bushes, rounded rocks, reeds at the waterline, flower clusters in the pop colours, lantern
-posts along the water, cairns on the outside of bends, a bridge to race under, docks with crates, a
+posts along the water, cairns on the outside of bends, a bridge to race under (its deck lands on a
+stone abutment at each bank with a plank ramp down to the terrace, so it is anchored to the land
+rather than hanging over the meadow), docks with crates, a
 shrine on the hill, and a camp or bunting every 100 m of bank. `Shaders/GreyboxProp.shader` gives
 every prop the design's form shading (lit tops, mid sides, dark undersides) with wrap lighting,
 occlusion, shadows and fog; props share a handful of materials each so the SRP batcher keeps the

@@ -19,9 +19,10 @@
 #define RIVER_FEATURE_FLOODABLE 32
 #define RIVER_FEATURE_SHALLOWS 64
 
-// Tile channels. A: flowX, flowZ, surface height, bed height. B: river distance, feature bits.
+// Tile channels. A: flowX, flowZ, surface height, bed height. B: river distance, feature bits,
+// offset from the current lane's centre in lane half-widths (readability only), 0.
 Texture2DArray<float4> _RiverTilesA;
-Texture2DArray<float2> _RiverTilesB;
+Texture2DArray<float4> _RiverTilesB;
 // Tile slot (tx, tz) -> slice index, or a negative value where the field has no tile.
 Texture2D<float> _RiverTileIndex;
 
@@ -52,6 +53,7 @@ struct RiverStaticSample
     int featuresAll; // AND of every contributing texel
     float eddyWeight; // bilinear share of eddy texels: 0.5 on the eddy line, so seams draw smooth
     float laneWeight; // bilinear share of current-lane texels: the fast line's edges fade, not step
+    float laneOffset; // signed offset from the lane centre in lane half-widths: chevrons point down the fast line
 };
 
 struct RiverWaterSample
@@ -71,7 +73,7 @@ struct RiverWaterSample
 };
 
 // Fetches one texel. Returns false outside the field, outside any tile, or on an unwritten texel.
-bool RiverFetchTexel(int ix, int iz, out float4 a, out float2 b)
+bool RiverFetchTexel(int ix, int iz, out float4 a, out float4 b)
 {
     a = 0;
     b = 0;
@@ -111,12 +113,13 @@ RiverStaticSample SampleRiverStatic(float2 xz)
         int dz = c >> 1;
         float w = (dx == 0 ? 1.0 - tx : tx) * (dz == 0 ? 1.0 - tz : tz);
         float4 a;
-        float2 b;
+        float4 b;
         if (!RiverFetchTexel(ix + dx, iz + dz, a, b)) continue;
         s.surfaceHeight += a.z * w;
         s.bedHeight += a.w * w;
         s.flow += a.xy * w;
         s.riverDistance += b.x * w;
+        s.laneOffset += b.z * w;
         int f = (int)round(b.y);
         s.featuresAny |= f;
         s.featuresAll &= f;
@@ -140,6 +143,7 @@ RiverStaticSample SampleRiverStatic(float2 xz)
     s.bedHeight *= inv;
     s.flow *= inv;
     s.riverDistance *= inv;
+    s.laneOffset *= inv;
     s.eddyWeight *= inv;
     s.laneWeight *= inv;
     s.hasData = true;

@@ -85,6 +85,7 @@ namespace Downstream.Core.Boat
         public float WallHitSlowSeconds;
         public float WallRestitution;
         public float EddyDrag;          // extra forward drag inside an eddy: slack water is slow water
+        public float LaneEntryBoost;    // seconds of boost on crossing into the current lane: the fast line kicks like a kart racer's dash panel
 
         // River features (design: eddy pivot of 120 degrees in 1.0 s or less on Rapid; holes grab for up to 1.5 s).
         public float EddyTurnScale;
@@ -166,6 +167,7 @@ namespace Downstream.Core.Boat
                 WallHitSlowSeconds = 0.6f,
                 WallRestitution = 0.25f,
                 EddyDrag = 0.6f,
+                LaneEntryBoost = 0.3f,
 
                 EddyTurnScale = 2.1f, // design: 120 degrees in 1.0 s on Rapid, with the slower keel turning above
                 HoleGrip = 14f,

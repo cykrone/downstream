@@ -284,8 +284,10 @@ namespace Downstream.Core.Water
                     var features = WaterFeature.None;
                     float flow = 0f;
                     float bed;
+                    float laneOffsetT = 0f;
                     if (inChannel)
                     {
+                        laneOffsetT = SimMath.Clamp((lateral - laneOffset) / SimMath.Max(s.LaneWidth * 0.5f, 0.5f), -4f, 4f);
                         // Parabolic cross-section, deepest in the middle.
                         float u = abs / halfWidth;
                         bed = surface - s.Depth * (1f - 0.6f * u * u);
@@ -331,9 +333,10 @@ namespace Downstream.Core.Water
                         t = t * t * (3f - 2f * t);
                         bed = SimMath.Lerp(surface - s.Depth * 0.4f, surface + BankShelfHeight, t);
                         features |= WaterFeature.Floodable;
+                        laneOffsetT = 4f; // well outside the fast line
                     }
 
-                    field.SetTexel(ix, iz, surface, bed, tX * flow, tZ * flow, distance, features);
+                    field.SetTexel(ix, iz, surface, bed, tX * flow, tZ * flow, distance, features, laneOffsetT);
                 }
             }
             return field;

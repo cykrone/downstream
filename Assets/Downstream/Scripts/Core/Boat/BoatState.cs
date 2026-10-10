@@ -34,6 +34,8 @@ namespace Downstream.Core.Boat
         EnteredEddy = 1 << 15,
         /// <summary>Hit a bank or a rock hard enough to lose speed (glancing contact only slides).</summary>
         HitWall = 1 << 16,
+        /// <summary>Crossed into the current lane from slower water (the surge that announces the fast line).</summary>
+        EnteredLane = 1 << 17,
     }
 
     /// <summary>
@@ -56,6 +58,8 @@ namespace Downstream.Core.Boat
 
         /// <summary>Seconds every pontoon has been out of the water.</summary>
         public float DryTime;
+        /// <summary>Seconds until crossing into the current lane can surge again (eddies cut the lane; re-entering is not a new find).</summary>
+        public float LaneSurgeCooldown;
         public bool Airborne;
         /// <summary>Fraction of pontoons in the water last tick, 0..1.</summary>
         public float WetFraction;

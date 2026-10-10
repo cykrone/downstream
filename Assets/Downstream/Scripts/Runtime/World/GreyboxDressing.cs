@@ -827,14 +827,23 @@ namespace Downstream.World
             }
         }
 
-        /// <summary>A plank bridge over the river, high enough to race under.</summary>
+        /// <summary>
+        /// A plank bridge over the river, high enough to race under. The deck spans from bank to bank and
+        /// lands on a stone abutment at each end, with a plank ramp down to the terrace behind it, so it
+        /// is anchored to the land rather than hanging in the air over the meadow; two piers stand in the
+        /// channel (the river's pier boulders sit beside them).
+        /// </summary>
         private void Bridge(Transform parent, float z)
         {
-            float half = HalfWidth(z) + _g.FloodableBank * 0.4f;
+            _category = "props";
             var tangent = Tangent(z);
             var right = new Vector3(tangent.z, 0f, -tangent.x);
-            var centre = new Vector3(ProceduralRiver.CentreX(_g, z), Surface(z) + 6.5f, z);
+            float deckY = Surface(z) + 6.5f;
+            var centre = new Vector3(ProceduralRiver.CentreX(_g, z), deckY, z);
             var yaw = Quaternion.LookRotation(right, Vector3.up);
+            // The abutments stand on the terrace riser just past the meadow, where the land starts to climb.
+            float abutmentLateral = TerrainIn(z) + 1.6f;
+            float half = abutmentLateral - 1.6f; // the deck meets the abutment's inner face
             int planks = Mathf.CeilToInt(half * 2f / 0.9f);
             for (int i = 0; i < planks; i++)
             {
@@ -850,9 +859,40 @@ namespace Downstream.World
             }
             for (int s = -1; s <= 1; s += 2)
             {
-                var foot = centre + right * (s * half * 0.55f);
+                var foot = centre + right * (s * HalfWidth(z) * 0.55f);
                 const float depth = 9f;
                 Prop(parent, "Pier", _postMesh, _post, foot - Vector3.up * depth, Quaternion.identity, new Vector3(4.5f, depth, 4.5f));
+            }
+            for (int s = -1; s <= 1; s += 2)
+            {
+                // Stone abutment: a block from below the ground up to the deck, seated on the rendered terrain.
+                var at = centre + right * (s * abutmentLateral);
+                var ground = Seat(new Vector3(at.x, GroundY(s, abutmentLateral, z), at.z), 0f);
+                float height = deckY + 0.15f - (ground.y - 1.5f);
+                Prop(parent, "Abutment", _box, _rock, new Vector3(at.x, ground.y - 1.5f + height * 0.5f, at.z), yaw, new Vector3(4.6f, height, 3.4f));
+                Prop(parent, "AbutmentCap", _plankMesh, _plank, new Vector3(at.x, deckY, at.z), yaw, new Vector3(4.2f, 1f, 3.6f));
+                // Plank ramp from the abutment down to the terrace, a few metres further out.
+                float rampLateral = abutmentLateral + 7.5f;
+                var rampEnd = centre + right * (s * rampLateral);
+                var rampGround = Seat(new Vector3(rampEnd.x, GroundY(s, rampLateral, z), rampEnd.z), 0f);
+                var top = new Vector3(at.x, deckY, at.z) + right * (s * 1.7f);
+                var bottom = new Vector3(rampGround.x, rampGround.y + 0.25f, rampGround.z);
+                var run = bottom - top;
+                float length = run.magnitude;
+                var rampRot = Quaternion.LookRotation(run.normalized, Vector3.up);
+                Prop(parent, "Ramp", _plankMesh, _plank, (top + bottom) * 0.5f, rampRot, new Vector3(3.4f, 1f, length));
+                for (int k = 0; k < 3; k++)
+                {
+                    // Posts beside the ramp, from the ground up to the deck line, so it reads as a trestle.
+                    var along = Vector3.Lerp(top, bottom, (k + 0.5f) / 3f);
+                    for (int side = -1; side <= 1; side += 2)
+                    {
+                        var p = along + tangent * (side * 1.6f);
+                        var g = Seat(new Vector3(p.x, p.y - 2f, p.z), 0f);
+                        float h = Mathf.Max(0.6f, p.y + 0.9f - g.y);
+                        Prop(parent, "Post", _postMesh, _post, g, Quaternion.identity, new Vector3(1.1f, h, 1.1f));
+                    }
+                }
             }
         }
 

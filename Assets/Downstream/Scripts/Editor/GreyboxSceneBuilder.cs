@@ -672,7 +672,7 @@ namespace Downstream.Editor
             mat.SetFloat("_RippleScale", 0.25f);
             mat.SetFloat("_RippleStrength", 0.25f);
             mat.SetFloat("_FlowSpeed", 0.35f);
-            mat.SetFloat("_LaneStretch", 1.5f);
+            mat.SetFloat("_LaneStretch", 3f); // reached at the fast-water speed; still water is unstretched
             mat.SetFloat("_SpecularStrength", 2f);
             mat.SetColor("_ZenithColor", new Color(0.50f, 0.68f, 0.90f));
             mat.SetColor("_HorizonColor", new Color(0.85f, 0.90f, 0.95f));
@@ -683,6 +683,14 @@ namespace Downstream.Editor
             mat.SetFloat("_SlowSpeed", 2.5f);
             mat.SetFloat("_FastSpeed", 9f);
             mat.SetFloat("_FoamSlope", 0.12f);
+            // Readability grammar: slack water sits dull and dark, fast water pale and streaked, the
+            // current lane carries bright chevrons, eddies darken into a churning pocket.
+            mat.SetColor("_SlowTint", new Color(0.62f, 0.78f, 0.86f));
+            mat.SetColor("_FastTint", new Color(1.12f, 1.22f, 1.16f));
+            mat.SetColor("_EddyTint", new Color(0.48f, 0.64f, 0.68f));
+            mat.SetFloat("_LaneMarkSpacing", 9f);
+            mat.SetFloat("_LaneMarkSpeed", 8f);
+            mat.SetColor("_LaneMarkColor", new Color(0.82f, 1.0f, 1.0f));
             EditorUtility.SetDirty(mat);
         }
 

@@ -65,26 +65,33 @@ namespace Downstream.Water
                 lr.enabled = false; // kept for the block-kit fallback; the continuous terrain draws the bank now
             }
 
-            // Collision: one box per centreline segment, at the inner face of the bank, never drawn.
+            // Collision: a chain of boxes along each bank at the water's edge, never drawn. The edge follows
+            // the breathing width (pools swell, narrows pinch) on the line square to the flow, so a boat
+            // meets the wall while its hull is still afloat in the shallows: it slides or bounces back into
+            // the channel instead of running up the dry meadow and being respawned as stranded.
             var colliders = new GameObject("Bank Colliders").transform;
             colliders.SetParent(root, false);
-            for (int i = 0; i < points.Length - 1; i++)
+            const float wallStep = 4f;
+            float wallEnd = g.Length + Core.Water.ProceduralRiver.RunOut;
+            for (int s = -1; s <= 1; s += 2)
             {
-                var a = path[i];
-                var b = path[i + 1];
-                var dir = b - a;
-                dir.y = 0f;
-                float len = dir.magnitude;
-                if (len < 0.01f) continue;
-                dir /= len;
-                var side = new Vector3(dir.z, 0f, -dir.x);
-                for (int s = -1; s <= 1; s += 2)
+                Vector3 prev = BankEdge(g, s, -4f);
+                for (float z = -4f + wallStep; z <= wallEnd + wallStep * 0.5f; z += wallStep)
                 {
+                    var next = BankEdge(g, s, Mathf.Min(z, wallEnd));
+                    var dir = next - prev;
+                    dir.y = 0f;
+                    float len = dir.magnitude;
+                    if (len < 0.01f) { prev = next; continue; }
+                    dir /= len;
+                    var outward = new Vector3(dir.z, 0f, -dir.x) * s;
                     var wall = new GameObject(s < 0 ? "Bank L" : "Bank R", typeof(BoxCollider));
                     wall.transform.SetParent(colliders, false);
-                    wall.transform.position = (a + b) * 0.5f + side * ((innerOffset + 1.5f) * s) + Vector3.up * 1f;
+                    // Tall enough that a hull launched off the 6 m falls cannot sail over the top.
+                    wall.transform.position = (prev + next) * 0.5f + outward * 1.5f + Vector3.up * 4f;
                     wall.transform.rotation = Quaternion.LookRotation(dir, Vector3.up);
-                    wall.GetComponent<BoxCollider>().size = new Vector3(3f, 7f, len + 0.5f);
+                    wall.GetComponent<BoxCollider>().size = new Vector3(3f, 20f, len + 0.6f);
+                    prev = next;
                 }
             }
 
@@ -107,6 +114,21 @@ namespace Downstream.Water
                 r.shadowCastingMode = ShadowCastingMode.On;
                 _boulderObjects.Add(go);
             }
+        }
+
+        /// <summary>
+        /// The wall line of one bank at a river distance: 1.2 m past the channel edge, out on the bank ramp
+        /// where the water is still 0.2 m deep, placed along the perpendicular through the centreline so
+        /// it stays square to the flow on bends. Surface height so the box follows the grade and the drops.
+        /// </summary>
+        private static Vector3 BankEdge(in Core.Water.ProceduralRiverSettings g, int side, float distance)
+        {
+            float d = Mathf.Clamp(distance, 0f, g.Length);
+            float lateral = side * (Core.Water.ProceduralRiver.WidthAt(g, d) * 0.5f + 1.2f);
+            float cx = Core.Water.ProceduralRiver.CentreX(g, distance);
+            float slope = Core.Water.ProceduralRiver.CentreSlope(g, distance);
+            float tl = Mathf.Sqrt(1f + slope * slope);
+            return new Vector3(cx + lateral / tl, Core.Water.ProceduralRiver.SurfaceAt(g, d), distance - lateral * slope / tl);
         }
 
         private readonly List<GameObject> _boulderObjects = new List<GameObject>();

@@ -207,6 +207,12 @@ Shader "Downstream/River Water"
                 // The eddy line: strongest where the bilinear eddy share crosses one half, so it runs smooth along the
                 // boundary instead of stepping texel by texel.
                 float eddySeam = smoothstep(0.25, 0.75, 1.0 - abs(2.0 * st.eddyWeight - 1.0));
+                float eddyW = smoothstep(0.15, 0.85, st.eddyWeight);
+                // The fast line's extent from the baked lane offset (continuous, so its edge is a clean curve
+                // rather than the texel staircase of the feature bit), minus any eddy cut into it.
+                float laneOff = abs(st.laneOffset);
+                float laneMask = (1.0 - smoothstep(0.85, 1.1, laneOff)) * (1.0 - eddyW);
+                lane = laneMask > 0.5;
 
                 // Gameplay normal: baked slope plus the wave slope, exactly as the sim sees it.
                 float2 slope = IN.staticSlopeAndWet.xy + waveSlope;
@@ -221,7 +227,9 @@ Shader "Downstream/River Water"
                 float w1 = 1.0 - w0;
                 float2 drift0 = flow * ((phase0 - 0.5) * period);
                 float2 drift1 = flow * ((phase1 - 0.5) * period);
-                float stretch = lane ? _LaneStretch : 1.0;
+                // Fast water streaks: ripples and foam strokes stretch along the flow with its speed, so a
+                // narrows reads as rushing and a pool as still before the boat feels either.
+                float stretch = lerp(1.0, _LaneStretch, saturate(speed / _FastSpeed)) * (lane ? 1.25 : 1.0);
                 float2 perp0 = float2(-flowDir.y, flowDir.x);
                 float2 uv0 = FlowFrameUv((xz - drift0) * _RippleScale, flowDir, stretch);
                 float2 uv1 = FlowFrameUv((xz - drift1) * _RippleScale + 0.37, flowDir, stretch);
@@ -259,7 +267,7 @@ Shader "Downstream/River Water"
                 cover += 0.75 * smoothstep(_FoamFlowStart, _FoamFlowFull, speed);
                 cover += 0.8 * smoothstep(_FoamSlope, _FoamSlope * 2.5, slopeMag) * (0.55 + 0.45 * strokes);
                 cover += lane ? 0.05 : 0.0; // lanes read as glossy streaks, not white water
-                cover += eddySeam * 0.4 * (0.6 + 0.4 * strokes) + (eddy ? 0.18 : 0.0);
+                cover += eddySeam * 0.4 * (0.6 + 0.4 * strokes) + eddyW * 0.3; // slack water churns: foam flecks turning back upstream
                 cover += crest ? 0.6 : 0.0;
                 cover += lip ? 0.9 : 0.0;
                 cover += 0.3 * smoothstep(0.6, 0.1, depth);
@@ -293,26 +301,28 @@ Shader "Downstream/River Water"
                 float3 body = lerp(_DeepColor.rgb, scene * _ShallowColor.rgb, absorb);
                 // Speed grading: fast water runs pale and bright, slack water sits deep and dull, so the fast
                 // line and the eddies read at a glance; eddies darken further.
-                float speedK = smoothstep(0.0, 1.0, saturate((speed - _SlowSpeed) / max(_FastSpeed - _SlowSpeed, 0.01)));
-                float laneSum = st.laneWeight, speedSum = speed;
+                float speedSum = speed;
                 [unroll]
                 for (int q = 0; q < 8; q++)
                 {
-                    // A 3 x 3 cross at 1.7 m: the lane's texel-row edge becomes a gradient over a boat length.
+                    // A 3 x 3 cross at 1.7 m: the texel-row steps of the flow become a gradient over a boat length.
                     float2 o = 1.7 * (q == 0 ? float2(1, 0) : q == 1 ? float2(-1, 0) : q == 2 ? float2(0, 1) : q == 3 ? float2(0, -1)
                              : q == 4 ? float2(1, 1) : q == 5 ? float2(-1, 1) : q == 6 ? float2(1, -1) : float2(-1, -1));
                     RiverStaticSample sq = SampleRiverStatic(xz + o);
-                    laneSum += sq.hasData ? sq.laneWeight : st.laneWeight;
                     speedSum += sq.hasData ? length(sq.flow * flowScale) : speed;
                 }
-                float laneW = smoothstep(0.2, 0.8, laneSum / 9.0);
-                speedK = smoothstep(0.0, 1.0, saturate((speedSum / 9.0 - _SlowSpeed) / max(_FastSpeed - _SlowSpeed, 0.01)));
-                float eddyW = smoothstep(0.15, 0.85, st.eddyWeight);
-                body *= lerp(_SlowTint.rgb, _FastTint.rgb, saturate(speedK * 0.6 + laneW * 0.5));
+                float speedK = smoothstep(0.0, 1.0, saturate((speedSum / 9.0 - _SlowSpeed) / max(_FastSpeed - _SlowSpeed, 0.01)));
+                body *= lerp(_SlowTint.rgb, _FastTint.rgb, saturate(speedK * 0.6 + laneMask * 0.5));
                 body *= lerp(1.0, _EddyTint.rgb, eddyW);
-                // Current lane: bright bands sweeping downstream every few metres, the boost-pad language.
-                float ph = frac((st.riverDistance - t * _LaneMarkSpeed) / _LaneMarkSpacing);
-                float laneBand = laneW * smoothstep(0.55, 0.72, ph) * smoothstep(0.98, 0.84, ph);
+                // Current lane: chevrons sweeping downstream and pointing the way, the dash-panel language of
+                // kart racers (tip on the fast line, arms trailing back toward its edges); they fade with
+                // distance so the far river stays calm.
+                float ph = frac((st.riverDistance - t * _LaneMarkSpeed) / _LaneMarkSpacing + laneOff * 0.3);
+                float chevron = smoothstep(0.63, 0.69, ph) * smoothstep(0.87, 0.81, ph);
+                // Keep the arrow inside the lane with a soft edge, and fade it under the camera so a chevron
+                // passing beneath the hull never reads as a slab of ice.
+                float laneBand = laneMask * (1.0 - smoothstep(0.7, 0.95, laneOff)) * chevron
+                               * saturate(1.6 - viewDist / 200.0) * saturate(viewDist / 12.0);
 
                 // Lighting: one warm key, cool sky fill, glints on the ripples.
                 float4 shadowCoord = TransformWorldToShadowCoord(IN.positionWS);
@@ -338,7 +348,7 @@ Shader "Downstream/River Water"
                 float3 colour = lerp(lit, sky, fresnel) + spec;
                 // Current lane: the glossy streak itself, a touch brighter where the stretched ripples catch the light.
                 colour += lane ? 0.04 * (0.5 + 0.5 * nf.y) * light.color * shadow : 0.0;
-                colour += laneBand * _LaneMarkColor.rgb * 0.12 * (ambient + light.color * shadow * 0.6);
+                colour = lerp(colour, _LaneMarkColor.rgb * (ambient + light.color * shadow * 0.7), laneBand * 0.5);
 
                 float3 foamLit = _FoamColor.rgb * (ambient + light.color * shadow * (0.5 + 0.5 * saturate(dot(N, L))));
                 colour = lerp(colour, foamLit, foam);

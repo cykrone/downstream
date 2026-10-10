@@ -14,6 +14,34 @@ namespace Downstream.Core.Tests
     public class RiverFeatureTests
     {
         [Test]
+        public void EnteringTheCurrentLaneSurgesOnce()
+        {
+            var t = TestRivers.Runabout();
+            var water = TestRivers.Uniform(0.01f, width: 600f, length: 600f, lane: true);
+            var s = BoatState.At(new SimVec3(0f, 0f, 100f), 0f);
+            int tick = 0;
+            // Crawling in: no surge, but the lane is still entered.
+            var first = BoatSimulator.Step(ref s, new BoatInput { Throttle = 0f }, t, water, 0f, BoatModifiers.None);
+            Assert.IsTrue((first & BoatEvents.EnteredLane) != 0);
+            Assert.IsTrue((first & BoatEvents.BoostStarted) == 0, "a boat without way should not surge");
+            Assert.AreEqual(0f, s.BoostTime);
+            // Up to speed outside the lane, then dropped into it: one surge, then quiet.
+            s = BoatState.At(new SimVec3(0f, 0f, 100f), 0f);
+            s = TestRivers.Run(s, new BoatInput { Throttle = 1f }, t, TestRivers.Uniform(0f, width: 600f, length: 600f), 5 * 120, ref tick);
+            s.InCurrentLane = false;
+            var entry = BoatSimulator.Step(ref s, new BoatInput { Throttle = 1f }, t, water, tick * BoatSimulator.TickDelta, BoatModifiers.None);
+            Assert.IsTrue((entry & BoatEvents.BoostStarted) != 0, "crossing into the lane at speed should surge");
+            Assert.AreEqual(t.LaneEntryBoost, s.BoostTime, 1e-4f);
+            int surges = 0;
+            for (int i = 0; i < 240; i++, tick++)
+            {
+                var e = BoatSimulator.Step(ref s, new BoatInput { Throttle = 1f }, t, water, tick * BoatSimulator.TickDelta, BoatModifiers.None);
+                if ((e & BoatEvents.EnteredLane) != 0) surges++;
+            }
+            Assert.AreEqual(0, surges, "the surge is for entering the lane, not for staying in it");
+        }
+
+        [Test]
         public void EddyPivots120DegreesWithinOneSecondOnRapid()
         {
             float withEddy = PivotSeconds(eddy: true);

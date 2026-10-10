@@ -48,6 +48,8 @@ namespace Downstream.Core.Boat
         public const float TickDelta = 1f / TickRate;
 
         private const float HopIgnoreAirSeconds = 0.05f;
+        /// <summary>A lane surge is a reward for finding the fast line, not for weaving along its edge.</summary>
+        public const float LaneSurgeCooldownSeconds = 6f;
         private const float MaxHopSeconds = 1f;
 
         /// <summary>Boat-local pontoon offset i (0..7): two rows of four along the hull.</summary>
@@ -158,6 +160,7 @@ namespace Downstream.Core.Boat
             // ---- Timers ------------------------------------------------------------------------------
             if (s.BoostTime > 0f) s.BoostTime = SimMath.Max(0f, s.BoostTime - dt);
             if (s.SlapTime > 0f) s.SlapTime = SimMath.Max(0f, s.SlapTime - dt);
+            if (s.LaneSurgeCooldown > 0f) s.LaneSurgeCooldown = SimMath.Max(0f, s.LaneSurgeCooldown - dt);
             if (s.SpinTime > 0f)
             {
                 s.SpinTime = SimMath.Max(0f, s.SpinTime - dt);
@@ -213,6 +216,20 @@ namespace Downstream.Core.Boat
             var relative = (s.Velocity - waterFlow).Flat;
             float vf = SimVec3.Dot(relative, fwd);
             float vl = SimVec3.Dot(relative, right);
+
+            // ---- Current lane entry: a short surge, so the fast water is felt the moment it is reached -------
+            // The lane's extra flow alone is a few per cent of top speed and goes unnoticed; kart racers make
+            // their fast strips kick. A boat already moving forward gets a brief boost and the boost plume.
+            if (inLane && wet && !s.InCurrentLane && !spinning)
+            {
+                events |= BoatEvents.EnteredLane;
+                if (t.LaneEntryBoost > 0f && vf > t.DriftMinSpeed * 0.5f && s.LaneSurgeCooldown <= 0f)
+                {
+                    s.BoostTime = SimMath.Max(s.BoostTime, t.LaneEntryBoost);
+                    s.LaneSurgeCooldown = LaneSurgeCooldownSeconds;
+                    events |= BoatEvents.BoostStarted;
+                }
+            }
 
             if (s.DriftDirection == 0)
             {
