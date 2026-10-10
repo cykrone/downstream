@@ -77,6 +77,8 @@ Shader "Downstream/Greybox Ground"
                 float _NormalStrength;
             CBUFFER_END
 
+            #include "DownstreamSkyFog.hlsl"
+
             struct Attributes
             {
                 float4 positionOS : POSITION;
@@ -194,7 +196,7 @@ Shader "Downstream/Greybox Ground"
                 float ndl = saturate(dot(N, light.direction));
                 float wrap = saturate((dot(N, light.direction) + 0.25) / 1.25);
                 float3 colour = albedo * (ambient + light.color * shadow * lerp(wrap, ndl, 0.6) * aoDirect);
-                colour = MixFog(colour, IN.fogFactor);
+                colour = ApplySkyFog(colour, IN.fogFactor, IN.positionWS);
                 return half4(colour, 1);
             }
             ENDHLSL

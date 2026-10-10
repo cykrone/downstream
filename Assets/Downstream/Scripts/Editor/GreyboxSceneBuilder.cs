@@ -44,6 +44,7 @@ namespace Downstream.Editor
         private static readonly Color Tomato = new Color(0.86f, 0.27f, 0.20f);
         private static readonly Color Cliff = new Color(0.36f, 0.37f, 0.40f);
         private static readonly Color FogColour = new Color(0.76f, 0.84f, 0.91f); // the sky at the horizon: far land dissolves into it
+        private const float SkyExposure = 0.82f;
         private static readonly Color Cream = new Color(0.93f, 0.88f, 0.76f);
         private static readonly Color Sunflower = new Color(0.98f, 0.78f, 0.22f);
         private static readonly Color SkyBlue = new Color(0.35f, 0.70f, 0.95f);
@@ -286,7 +287,7 @@ namespace Downstream.Editor
             RenderSettings.fogColor = FogColour;
             if (sky != null && sky.shader != null && (sky.shader.name == "Skybox/Panoramic" || sky.shader.name == "Downstream/Greybox Sky HDRI") && sky.GetTexture("_MainTex") is Texture2D hdri && hdri.isReadable)
             {
-                // Measure the HDRI: the sun is the brightest patch, the fog colour is the band just above the horizon.
+                // Measure the HDRI: the sun is the brightest patch, the fog colour is the sky at the horizon.
                 AnalyseSky(hdri, out float sunAzimuth, out float sunElevation, out Color horizon);
                 // Turn the panorama so its sun sits where the design wants the key: upper left, our usual -38 degrees.
                 const float wantAzimuth = -38f;
@@ -297,7 +298,7 @@ namespace Downstream.Editor
                 if (sky.HasProperty("_HorizonHaze")) sky.SetColor("_HorizonHaze", horizon);
             }
             RenderSettings.fogStartDistance = 160f;
-            RenderSettings.fogEndDistance = 1800f; // the far ground reaches 3.2 km: distant hills show as faint silhouettes before dissolving
+            RenderSettings.fogEndDistance = 2600f; // the terrain reaches 3.6 km: distant hills keep some tone before dissolving
             return sun;
         }
 
@@ -319,7 +320,7 @@ namespace Downstream.Editor
                 float lum = 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
                 if (lum > best) { best = lum; bx = x; by = y; }
                 float v = (y + 0.5f) / h;
-                if (v > 0.505f && v < 0.56f) { band += c; bandCount++; }
+                if (v > 0.49f && v < 0.515f) { band += c; bandCount++; } // right at the horizon, so fogged land meets the sky in its own colour
             }
             float u = (bx + 0.5f) / w, vv = (by + 0.5f) / h;
             float lon = (0.5f - u) * 2f * Mathf.PI;      // atan2(z, x)
@@ -331,7 +332,9 @@ namespace Downstream.Editor
             sunAzimuth = Mathf.Repeat(sunAzimuth + 180f, 360f);
             if (sunAzimuth > 180f) sunAzimuth -= 360f;
             horizon = bandCount > 0 ? band / bandCount : new Color(0.76f, 0.84f, 0.91f);
-            horizon = new Color(Mathf.Clamp01(horizon.r), Mathf.Clamp01(horizon.g), Mathf.Clamp01(horizon.b), 1f);
+            // The same exposure the sky shader applies, and no clamp: the horizon is brighter than 1 in HDR,
+            // and fogged land must take exactly the sky's colour there.
+            horizon = new Color(Mathf.Max(0f, horizon.r * SkyExposure), Mathf.Max(0f, horizon.g * SkyExposure), Mathf.Max(0f, horizon.b * SkyExposure), 1f);
         }
 
         private static void CreateVolume(VolumeProfile profile)
@@ -399,10 +402,10 @@ namespace Downstream.Editor
                 mat.SetTexture("_MainTex", hdri);
                 mat.SetFloat("_Mapping", 1f);   // latitude-longitude
                 mat.SetFloat("_ImageType", 0f); // 360 degrees
-                mat.SetFloat("_Exposure", 0.82f);
+                mat.SetFloat("_Exposure", SkyExposure);
                 mat.SetFloat("_Rotation", 0f);
                 if (mat.HasProperty("_MaxBrightness")) mat.SetFloat("_MaxBrightness", 5f);
-                if (mat.HasProperty("_HazeHeight")) { mat.SetFloat("_HazeHeight", 0.035f); mat.SetFloat("_HazeStrength", 0.5f); }
+                if (mat.HasProperty("_HazeHeight")) { mat.SetFloat("_HazeHeight", 0.035f); mat.SetFloat("_HazeStrength", 0f); } // no haze: the panorama runs unbroken to the bottom
                 if (mat.HasProperty("_Tint")) mat.SetColor("_Tint", Color.white); // the panoramic shader's default tint is half grey
                 EditorUtility.SetDirty(mat);
                 return mat;
@@ -547,7 +550,7 @@ namespace Downstream.Editor
             var go = new GameObject("ChaseCamera", typeof(Camera), typeof(AudioListener), typeof(ChaseCamera));
             var camera = go.GetComponent<Camera>();
             camera.fieldOfView = 70f;
-            camera.farClipPlane = 3000f; // inside the far ground, past the end of the fog
+            camera.farClipPlane = 3500f; // inside the terrain's reach, past the end of the fog
             camera.nearClipPlane = 0.2f;
             camera.allowHDR = true;
             var data = camera.GetUniversalAdditionalCameraData();

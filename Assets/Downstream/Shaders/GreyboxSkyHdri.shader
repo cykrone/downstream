@@ -12,7 +12,7 @@ Shader "Downstream/Greybox Sky HDRI"
         _Tint ("Tint", Color) = (1, 1, 1, 1)
         _HorizonHaze ("Horizon haze (fog colour)", Color) = (0.76, 0.84, 0.91, 1)
         _HazeHeight ("Haze band height", Range(0.01, 0.4)) = 0.035
-        _HazeStrength ("Haze strength", Range(0, 1)) = 0.5
+        _HazeStrength ("Haze strength", Range(0, 1)) = 0
     }
 
     SubShader
@@ -67,11 +67,9 @@ Shader "Downstream/Greybox Sky HDRI"
                 float3 c = SAMPLE_TEXTURE2D_GRAD(_MainTex, sampler_MainTex, uv, dx, dy).rgb * _Exposure * _Tint.rgb;
                 float lum = dot(c, float3(0.2126, 0.7152, 0.0722));
                 if (lum > _MaxBrightness) c *= _MaxBrightness / lum;
-                // A thin haze line where the fogged land meets the sky, so the two join without a seam; below
-                // the horizon the panorama's own ground never shows (the far ground covers it, and anything
-                // that slipped through would be a stretched smear), only the fog colour.
-                float haze = (1.0 - smoothstep(0.0, _HazeHeight, d.y)) * _HazeStrength;
-                haze = max(haze, saturate(-d.y * 60.0));
+                // Optional haze line at the horizon (off by default): the panorama runs unbroken all the way
+                // down, so whatever the land leaves uncovered shows the sky's own ground, not a flat fill.
+                float haze = (1.0 - smoothstep(0.0, _HazeHeight, abs(d.y))) * _HazeStrength;
                 c = lerp(c, _HorizonHaze.rgb, haze);
                 return half4(c, 1);
             }

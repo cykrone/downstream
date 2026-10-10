@@ -105,6 +105,8 @@ Shader "Downstream/River Water"
                 float4 _SlowTint, _FastTint, _EddyTint, _LaneMarkColor;
             CBUFFER_END
 
+            #include "DownstreamSkyFog.hlsl"
+
             struct Attributes
             {
                 float4 positionOS : POSITION;
@@ -341,7 +343,7 @@ Shader "Downstream/River Water"
                 float3 foamLit = _FoamColor.rgb * (ambient + light.color * shadow * (0.5 + 0.5 * saturate(dot(N, L))));
                 colour = lerp(colour, foamLit, foam);
 
-                colour = MixFog(colour, IN.fogFactor);
+                colour = ApplySkyFog(colour, IN.fogFactor, IN.positionWS);
 
                 int dbg = (int)round(_Debug);
                 if (dbg == 1) return half4(body, 1);

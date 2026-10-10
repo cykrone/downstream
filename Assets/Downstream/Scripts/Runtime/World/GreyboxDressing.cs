@@ -519,7 +519,7 @@ namespace Downstream.World
         /// </summary>
         private void BuildHills(Transform parent, int side)
         {
-            const float reach = 3200f;
+            const float reach = 3600f;
             // Columns: u < 0 spans the channel (lateral = TerrainIn * (1 + u)); u >= 0 is the offset past the meadow.
             var cols = new List<float> { -1f, -0.7f, -0.4f, -0.15f };
             for (float o = 0.6f; o < TerraceRun + 2f; o += 0.35f) cols.Add(o); // starts past the bed mesh's meadow: no overlap to fight over
@@ -899,6 +899,13 @@ namespace Downstream.World
             // The painted sky's clouds come from the same generated noise as the ground; the asset cannot hold it.
             var sky = RenderSettings.skybox;
             if (sky != null && sky.HasProperty("_CloudMap")) sky.SetTexture("_CloudMap", WaterTextures.SoftNoise);
+            // Sky-matched fog: the ground, water and prop shaders fog toward the panorama in the view direction.
+            if (sky != null && sky.HasProperty("_Rotation") && sky.HasProperty("_MaxBrightness") && sky.GetTexture("_MainTex") != null)
+            {
+                Shader.SetGlobalTexture("_DownstreamSkyTex", sky.GetTexture("_MainTex"));
+                Shader.SetGlobalVector("_DownstreamSkyParams", new Vector4(sky.GetFloat("_Rotation"), sky.GetFloat("_Exposure"), sky.GetFloat("_MaxBrightness"), 1f));
+            }
+            else Shader.SetGlobalVector("_DownstreamSkyParams", Vector4.zero);
             DynamicGI.UpdateEnvironment();
             var go = new GameObject("Sky Reflection Probe");
             go.transform.SetParent(transform, false);

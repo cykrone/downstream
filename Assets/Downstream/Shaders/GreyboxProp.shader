@@ -45,6 +45,8 @@ Shader "Downstream/Greybox Prop"
                 float _Smoothness;
             CBUFFER_END
 
+            #include "DownstreamSkyFog.hlsl"
+
             struct Attributes
             {
                 float4 positionOS : POSITION;
@@ -96,7 +98,7 @@ Shader "Downstream/Greybox Prop"
                 float spec = pow(saturate(dot(N, H)), exp2(6.0 * _Smoothness + 2.0)) * _Smoothness * 0.5;
                 colour += light.color * shadow * spec;
 
-                colour = MixFog(colour, IN.fogFactor);
+                colour = ApplySkyFog(colour, IN.fogFactor, IN.positionWS);
                 return half4(colour, 1);
             }
             ENDHLSL
