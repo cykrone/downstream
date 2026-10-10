@@ -36,6 +36,27 @@ namespace Downstream.Boat
 
         private static float Z(float t) => -Length * 0.5f + Length * t;
 
+        /// <summary>
+        /// Hull half width at height y and hull-space z, including the rub rail band and the deck crown;
+        /// 0 where there is no hull (above the rail, below the keel, beyond the ends). The animator keeps the
+        /// paddle outside this section, so the stroke never cuts the hull whatever the pilot does.
+        /// </summary>
+        public static float HalfWidthAt(float y, float z)
+        {
+            float t = (z + Length * 0.5f) / Length;
+            if (t < 0f || t > 1f) return 0f;
+            float w = HalfWidth(t), k = KeelY(t), sh = SheerY(t);
+            if (y < k || y > sh + 0.06f) return 0f;
+            if (y >= sh - 0.06f) return w + 0.10f; // rub rail: 5 cm outside the sheer, 5 cm radius
+            float c = Mathf.Clamp01((sh - y) / (sh - k));
+            float cosA = Mathf.Pow(c, 1f / 0.75f);
+            float sinA = Mathf.Sqrt(Mathf.Max(0f, 1f - cosA * cosA));
+            float ring = w * sinA * (1f + 0.06f * (1f - c));
+            // Blend up into the rail over the 10 cm below it, so a sampled clearance never steps by the rail's width.
+            float toRail = Mathf.Clamp01((y - (sh - 0.16f)) / 0.10f);
+            return Mathf.Max(ring, Mathf.Lerp(ring, w + 0.10f, toRail));
+        }
+
         /// <summary>The hull skin: rings from transom to bow plus a flat transom, smooth-shaded.</summary>
         public static Mesh Hull(string name = "BoatHull")
         {

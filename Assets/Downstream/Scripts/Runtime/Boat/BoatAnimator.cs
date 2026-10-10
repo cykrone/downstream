@@ -19,7 +19,7 @@ namespace Downstream.Boat
         [SerializeField] private float _fullStrokeSpeed = 18f;
         [SerializeField] private float _gripHalfWidth = 0.36f;
 
-        private Vector3 _torsoRest, _headRest, _paddleRest, _shoulderL, _shoulderR;
+        private Vector3 _torsoRest, _headRest, _shoulderL, _shoulderR;
         private float _phase;
         private float _lean, _twist, _pitch, _raise;
         private bool _ready;
@@ -35,7 +35,6 @@ namespace Downstream.Boat
             if (_torso == null || _paddle == null) return;
             _torsoRest = _torso.localPosition;
             _headRest = _head != null ? _head.localPosition : Vector3.zero;
-            _paddleRest = _paddle.localPosition;
             _shoulderL = _armL != null ? _armL.localPosition : Vector3.zero;
             _shoulderR = _armR != null ? _armR.localPosition : Vector3.zero;
             _ready = true;
@@ -80,16 +79,74 @@ namespace Downstream.Boat
                 _head.localPosition = _headRest;
             }
 
-            // Paddle: roll dips a blade, pitch sweeps the shaft, the whole thing slides back on the pull
-            // and lifts clear when the boat is in the air.
-            float roll = Mathf.Lerp(-46f * dip, 0f, _raise);
-            float pitch = Mathf.Lerp(-12f * sweep, -35f, _raise);
-            _paddle.localRotation = Quaternion.Euler(pitch, -6f * dip, roll);
-            _paddle.localPosition = _paddleRest + new Vector3(0.42f * dip * (1f - _raise), 0.08f * _raise + 0.03f * Mathf.Abs(dip), -0.14f * (1f - sweep) * 0.5f * (1f - _raise));
+            // Paddle: solved in the pilot-root frame so the torso's lean and twist never tilt it into the
+            // hull, then expressed under the torso (its parent).
+            var pose = SolvePaddle(dip, sweep, _raise);
+            var inv = Quaternion.Inverse(_torso.localRotation);
+            _paddle.localRotation = inv * pose.Rotation;
+            _paddle.localPosition = inv * (pose.Position - _torso.localPosition);
 
             // Arms: a straight segment from each shoulder to its grip on the shaft.
             Reach(_armL, _shoulderL, _paddle.TransformPoint(new Vector3(-_gripHalfWidth, 0f, 0f)));
             Reach(_armR, _shoulderR, _paddle.TransformPoint(new Vector3(_gripHalfWidth, 0f, 0f)));
+        }
+
+        /// <summary>Paddle pose in the pilot-root (hips) frame.</summary>
+        public struct PaddlePose { public Vector3 Position; public Quaternion Rotation; }
+
+        /// <summary>Grip centre to a blade tip.</summary>
+        public const float ShaftHalfLength = 1.38f;
+        /// <summary>Along the shaft from the grip centre where the blade begins.</summary>
+        public const float BladeStart = 0.92f;
+        public const float ShaftRadius = 0.035f;
+        public const float BladeHalfWidth = 0.13f;
+        /// <summary>Gap kept between any part of the paddle and the hull section.</summary>
+        public const float HullClearance = 0.10f;
+
+        /// <summary>
+        /// The stroke: the shaft rolls the dipped blade down (60 degrees at full dip) and slides a metre to
+        /// that side so it reaches the water outboard of the gunwale, the blades sweep fore and aft, and the
+        /// whole paddle lifts level when the boat is in the air. Then every sample from the grip to the dipped
+        /// tip is tested against the hull section at its height and station, and the paddle is pushed
+        /// outboard by the largest shortfall, so the blade's arc stays outside the hull by the clearance.
+        /// Mirrored: the left stroke (dip &lt; 0) half a cycle later is the right stroke reflected in x.
+        /// </summary>
+        public static PaddlePose SolvePaddle(float dip, float sweep, float raise)
+        {
+            float side = dip >= 0f ? 1f : -1f;
+            float m = Mathf.Abs(dip);
+            float roll = Mathf.Lerp(-60f * dip, 0f, raise);
+            float yaw = Mathf.Lerp(-24f * sweep, 0f, raise);
+            float feather = Mathf.Lerp(-12f * sweep * side, -35f, raise); // about x, so by stroke progress: the same twist on either side
+            var rot = Quaternion.Euler(0f, yaw, 0f) * Quaternion.Euler(0f, 0f, roll) * Quaternion.Euler(feather, 0f, 0f);
+            var pos = BlockBoat.GripFromHips + new Vector3(
+                0.98f * dip * (1f - raise),
+                0.10f * raise - 0.04f * m * (1f - raise),
+                -0.10f * (1f - sweep * side) * 0.5f * (1f - raise)); // the pull slides the paddle aft on either side
+            var dir = rot * new Vector3(side, 0f, 0f);
+            var up = rot * Vector3.up;
+            var fwd = rot * Vector3.forward;
+            float shift = 0f;
+            const int samples = 36;
+            for (int i = 1; i <= samples; i++)
+            {
+                float along = ShaftHalfLength * i / samples;
+                float radius = along >= BladeStart ? BladeHalfWidth : ShaftRadius;
+                var axis = pos + dir * along + BlockBoat.Hips;
+                // Eight points around the shaft (or the blade's extent) at this station: an edge lower than
+                // the axis can sit at a wider part of the section, so each is tested at its own height.
+                for (int q = 0; q < 8; q++)
+                {
+                    float ang = q * Mathf.PI * 0.25f;
+                    var hull = axis + (up * Mathf.Cos(ang) + fwd * Mathf.Sin(ang)) * radius;
+                    float section = BlockBoat.HalfWidthAt(hull.y, hull.z);
+                    if (section <= 0f) continue;
+                    float deficit = section + HullClearance - Mathf.Abs(hull.x);
+                    if (deficit > shift) shift = deficit;
+                }
+            }
+            pos.x += side * shift;
+            return new PaddlePose { Position = pos, Rotation = rot };
         }
 
         private void Reach(Transform arm, Vector3 shoulderLocal, Vector3 handWorld)
