@@ -140,14 +140,20 @@ and holes cross it perpendicular to the current instead of along a line of const
 surface and bed grids are built in those river coordinates (rows of equal distance, columns across
 the channel, with extra rows either side of every drop), so a 6 m fall is one clean strip.
 
-Boats are lofted hulls (`BlockBoat` in `BoatMeshes.cs`): a fine bow entry, full midships, a flat
-transom, a crowned deck with a rub rail and cockpit coaming, a seated pilot in a vest and helmet,
-and a double-bladed paddle. The pilot is articulated (hips, torso, neck, shoulders, grips) with
+Boats are lofted hulls (`BlockBoat` in `BoatMeshes.cs`) on the sim's 4 x 1.4 m footprint, a wide
+canoe: a fine bow entry, full midships, a flat transom, a crowned deck with a rub rail and cockpit
+coaming, a seated pilot in a vest and helmet (built at unit scale about the hips and scaled 1.1x as a
+whole, so an adult fills the cockpit), and a 2.4 m double-bladed paddle. The pilot is articulated (hips, torso, neck, shoulders, grips) with
 goggles, a helmet peak and stripe, vest straps and collar, jersey sleeves, gloved hands on the
 paddle and knees under the coaming; `BoatAnimator` drives it from the presented state alone: a
 stroke cycle whose rate follows speed (blades dip alternately, the shaft sweeps and slides, the arms
-stretch to the grips), a torso that twists with the stroke and leans forward with speed and into a
-drift, a head that stays level and looks into the turn, and a paddle raised clear in the air.
+reach to the grips), a torso that twists with the stroke and leans forward with speed and into a
+drift, a head that stays level and looks into the turn, and a paddle raised clear in the air. The
+paddle pose is solved in the pilot-root frame (`BoatAnimator.SolvePaddle`), so the torso's lean never
+tilts it into the hull, and every sample along the shaft and around both blades is tested against
+the hull section at its own height and station (`BlockBoat.HalfWidthAt`, rail band included) and the
+paddle pushed outboard by the largest shortfall: the blade's arc stays 10 cm clear of the hull on
+either side, which the edit-mode tests step through a whole cycle to confirm.
 `BoatView` gives each boat a livery from an eight-colour set (hull, helmet, vest trim and sleeves
 share one material instance per boat). `BoatEffects` sells speed from the presented state
 alone: a stern wake and two bow wakes as trail ribbons that are re-sampled onto the water surface
@@ -167,17 +173,30 @@ dressing, which scales each model to a target height from its measured bounds so
 silhouette rules hold whichever pack is used; without them the block props below are the fallback.
 The builder also measures the HDRI (brightest patch = sun, the band above the horizon = fog colour),
 turns the panorama so the sun sits where the design wants the key light, and sets the directional
-light's elevation and the fog to match.
+light's elevation and the fog to match. `Shaders/GreyboxSkyHdri.shader` draws the panorama at its
+full 4096 width with a brightness clamp for the sun, a thin haze line where the fogged land meets the
+sky, and only the fog colour below the horizon; it samples with wrapped UV gradients, because the
+lat-long seam otherwise drops to the smallest mip along one pixel column once mipmaps are on.
 
 `GreyboxDressing` dresses the valley at runtime from a fixed seed, nothing saved in the scene:
 rolling grass hills behind the bank blocks (a heightfield in river coordinates, so it follows the
-meander), puffy round trees and drooping pines built from a few merged mesh variants (a tree is two
+meander, and one continuous sheet per side: dense across the terrace, sparse on the hills, then coarser
+still out to 3.2 km in every direction, past both ends of the course as well, where the dry valley
+continues; beyond the built hills the land climbs toward eye level with rolling relief, so from a river
+that has dropped far below its start the horizon is still land dissolving into fog and never the sky's
+lower half; the ground shader fades its tiling to the palette colour with distance so no grid shows), puffy round trees and drooping pines built from a few merged mesh variants (a tree is two
 draws), bushes, rounded rocks, reeds at the waterline, flower clusters in the pop colours, lantern
 posts along the water, cairns on the outside of bends, a bridge to race under, docks with crates, a
 shrine on the hill, and a camp or bunting every 100 m of bank. `Shaders/GreyboxProp.shader` gives
 every prop the design's form shading (lit tops, mid sides, dark undersides) with wrap lighting,
 occlusion, shadows and fog; props share a handful of materials each so the SRP batcher keeps the
-draw count down. Meadow placement is measured from the channel edge, so it follows the breathing width. `WaterTextures` generates tileable ripple normals, foam strokes and pebbles at
+draw count down. Meadow placement is measured from the channel edge, so it follows the breathing width.
+Every scattered prop is seated on the rendered ground, not the land formula: the bed and meadow, both
+hill sheets and the far ground get mesh colliders at dressing time and each prop drops by a ray onto
+the highest of them, a small sink below the surface (rocks bed in by a seventh of their height), and
+rocks, grass and flowers lie with the ground normal while trees lean with it only up to 8 degrees.
+The formula and the meshes disagree where the hills are sampled coarsely and where the bed ramps down
+to the water, which is what left vegetation hovering; the dressing logs how many moved per category. `WaterTextures` generates tileable ripple normals, foam strokes and pebbles at
 runtime so the repository ships no binary placeholders; painted textures replace them with no shader
 change. `GreyboxSceneBuilder` applies the design doc's rendering rules (warm key from the upper left, a
 sky-driven ambient so shadows take the sky's colour, light linear haze that meets the sky at the

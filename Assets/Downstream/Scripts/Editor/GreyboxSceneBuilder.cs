@@ -297,7 +297,7 @@ namespace Downstream.Editor
                 if (sky.HasProperty("_HorizonHaze")) sky.SetColor("_HorizonHaze", horizon);
             }
             RenderSettings.fogStartDistance = 160f;
-            RenderSettings.fogEndDistance = 1400f;
+            RenderSettings.fogEndDistance = 1800f; // the far ground reaches 3.2 km: distant hills show as faint silhouettes before dissolving
             return sun;
         }
 
@@ -402,6 +402,7 @@ namespace Downstream.Editor
                 mat.SetFloat("_Exposure", 0.82f);
                 mat.SetFloat("_Rotation", 0f);
                 if (mat.HasProperty("_MaxBrightness")) mat.SetFloat("_MaxBrightness", 5f);
+                if (mat.HasProperty("_HazeHeight")) { mat.SetFloat("_HazeHeight", 0.035f); mat.SetFloat("_HazeStrength", 0.5f); }
                 if (mat.HasProperty("_Tint")) mat.SetColor("_Tint", Color.white); // the panoramic shader's default tint is half grey
                 EditorUtility.SetDirty(mat);
                 return mat;
@@ -546,7 +547,7 @@ namespace Downstream.Editor
             var go = new GameObject("ChaseCamera", typeof(Camera), typeof(AudioListener), typeof(ChaseCamera));
             var camera = go.GetComponent<Camera>();
             camera.fieldOfView = 70f;
-            camera.farClipPlane = 2000f;
+            camera.farClipPlane = 3000f; // inside the far ground, past the end of the fog
             camera.nearClipPlane = 0.2f;
             camera.allowHDR = true;
             var data = camera.GetUniversalAdditionalCameraData();

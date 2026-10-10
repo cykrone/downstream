@@ -28,6 +28,8 @@ namespace Downstream.Water
 
         private RiverFieldGpu _gpu;
         private MeshRenderer _bed;
+        /// <summary>The bed and meadow renderer, for anything that needs to seat on the rendered ground.</summary>
+        public MeshRenderer Bed => _bed;
 
         /// <summary>The GPU copy of the water, once <see cref="Build"/> has run.</summary>
         public RiverFieldGpu Gpu => _gpu;

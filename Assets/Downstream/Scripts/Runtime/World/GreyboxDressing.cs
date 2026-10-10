@@ -59,6 +59,16 @@ namespace Downstream.World
         private const float TerraceRun = 1.8f;   // metres over which the meadow rises to the terrace: a short earth riser
         private const float Tier = 4.5f;         // height of each hill tier (the reference's cliff layers)
 
+        [Header("Ground seating")]
+        [SerializeField, Tooltip("How far below the rendered ground the base of a scattered prop sits.")]
+        private float _sinkDepth = 0.05f;
+        [SerializeField, Tooltip("Trees lean with the slope only up to this angle.")]
+        private float _treeTiltLimit = 8f;
+        private readonly List<Collider> _ground = new List<Collider>();
+        private readonly Dictionary<string, int[]> _seated = new Dictionary<string, int[]>();
+        private string _category = "props";
+        private Vector3 _lastNormal = Vector3.up;
+
         private void Start()
         {
             if (!_built) Build();
@@ -75,6 +85,7 @@ namespace Downstream.World
             var hills = new GameObject("Hills").transform;
             hills.SetParent(transform, false);
             for (int side = -1; side <= 1; side += 2) BuildHills(hills, side);
+            PrepareGround(hills);
 
             var trees = Group("Trees");
             var bushes = Group("Bushes");
@@ -107,6 +118,66 @@ namespace Downstream.World
             FallsMist(landmarks);
             RiverBoulders(landmarks);
             SetUpLighting();
+            foreach (var kv in _seated)
+                Debug.Log($"[GreyboxDressing] {kv.Key}: {kv.Value[1]} of {kv.Value[0]} moved onto the rendered ground (by more than 5 cm)");
+        }
+
+        // ---- ground seating ----------------------------------------------------------------------
+
+        /// <summary>
+        /// The analytic land profile and the meshes built from it differ: the hills are piecewise linear on
+        /// a 2.5-6 m grid and the bed mesh ramps down to the water over the bank, so anything placed on the
+        /// formula floats or sinks where they disagree. Every scattered prop is therefore seated by a ray
+        /// against the rendered ground: the bed and meadow, both hill sheets and the far ground.
+        /// </summary>
+        private void PrepareGround(Transform hills)
+        {
+            foreach (var mf in hills.GetComponentsInChildren<MeshFilter>()) AddGround(mf);
+            var water = FindFirstObjectByType<GreyboxWaterMesh>();
+            if (water != null && water.Bed != null) AddGround(water.Bed.GetComponent<MeshFilter>());
+            Physics.SyncTransforms();
+        }
+
+        private void AddGround(MeshFilter mf)
+        {
+            if (mf == null || mf.sharedMesh == null) return;
+            var c = mf.GetComponent<MeshCollider>();
+            if (c == null) c = mf.gameObject.AddComponent<MeshCollider>();
+            c.sharedMesh = mf.sharedMesh;
+            _ground.Add(c);
+        }
+
+        /// <summary>Drops the point onto the highest rendered ground under it, a sink below the surface; keeps
+        /// the ground normal for <see cref="Aligned"/>. Counts how many moved, per category.</summary>
+        private Vector3 Seat(Vector3 pos, float sink = -1f)
+        {
+            if (sink < 0f) sink = _sinkDepth;
+            _lastNormal = Vector3.up;
+            if (!_seated.TryGetValue(_category, out var tally)) _seated[_category] = tally = new int[2];
+            tally[0]++;
+            if (_ground.Count == 0) return pos;
+            var hits = Physics.RaycastAll(new Vector3(pos.x, pos.y + 300f, pos.z), Vector3.down, 1000f, ~0, QueryTriggerInteraction.Ignore);
+            float best = float.MinValue; bool found = false;
+            foreach (var h in hits)
+            {
+                if (!_ground.Contains(h.collider)) continue;
+                if (h.point.y > best) { best = h.point.y; _lastNormal = h.normal; found = true; }
+            }
+            if (!found) return pos;
+            float y = best - sink;
+            if (Mathf.Abs(y - pos.y) > 0.05f) tally[1]++;
+            pos.y = y;
+            return pos;
+        }
+
+        /// <summary>The yaw tilted onto the last seated ground normal, up to a limit (90 = fully aligned).</summary>
+        private Quaternion Aligned(Quaternion yaw, float tiltLimit)
+        {
+            float angle = Vector3.Angle(Vector3.up, _lastNormal);
+            if (angle < 0.01f) return yaw;
+            var tilt = Quaternion.FromToRotation(Vector3.up, _lastNormal);
+            if (angle > tiltLimit) tilt = Quaternion.Slerp(Quaternion.identity, tilt, tiltLimit / angle);
+            return tilt * yaw;
         }
 
         private readonly List<Material> _materials = new List<Material>();
@@ -153,9 +224,11 @@ namespace Downstream.World
         /// floodable meadow, a grass terrace rising to the bank top, then hills in soft tiers (the
         /// reference's layered cliffs) with gentle noise on each tier.
         /// </summary>
-        private float LandRise(float lateral, float z)
+        private float LandRise(float lateral, float z) => LandRise(lateral, z, z);
+
+        private float LandRise(float lateral, float z, float zEdge)
         {
-            float meadowEdge = TerrainIn(z);
+            float meadowEdge = TerrainIn(zEdge);
             if (lateral <= meadowEdge) return ProceduralRiver.BankShelfHeight;
             float t = Mathf.Clamp01((lateral - meadowEdge) / TerraceRun);
             float terrace = Mathf.Lerp(ProceduralRiver.BankShelfHeight, BankTop, t * t * (3f - 2f * t));
@@ -199,7 +272,7 @@ namespace Downstream.World
         private Vector3 Meadow(int side, float fromEdge, float z, float lift = 0f)
         {
             float lateral = HalfWidth(z) + fromEdge;
-            return World(side, lateral, z, GroundY(side, lateral, z) + lift);
+            return Seat(World(side, lateral, z, GroundY(side, lateral, z))) + Vector3.up * lift;
         }
 
         private static float Fbm(float x, float y, int octaves)
@@ -435,32 +508,65 @@ namespace Downstream.World
 
         // ---- hills ------------------------------------------------------------------------------
 
+        /// <summary>
+        /// One terrain sheet per side, in river coordinates: dense across the terrace, sparse out on the
+        /// hills, then coarser still out to the fog in every direction, past both ends of the course as well
+        /// (the dry valley continues, meandering on). Beyond the built hills the land rises toward eye level
+        /// with rolling relief, so from a river that has dropped far below its start the horizon is still
+        /// land dissolving into fog, never the sky's lower half. Inside the course the columns across the
+        /// channel collapse under the meadow edge, where the bed mesh draws the ground; past the water's ends
+        /// they spread across the valley floor, switching over 0.1 m so nothing shows.
+        /// </summary>
         private void BuildHills(Transform parent, int side)
         {
-            // Columns are dense across the terrace and sparse out on the hills; rows are 3 m along the river.
-            var offsets = new List<float>();
-            for (float o = 0.6f; o < TerraceRun + 2f; o += 0.35f) offsets.Add(o); // starts past the bed mesh's meadow: no overlap to fight over
-            for (float o = TerraceRun + 2f; o < TerraceRun + 6f; o += 1f) offsets.Add(o);
-            for (float o = TerraceRun + 6f; o < 40f; o += 2.5f) offsets.Add(o);
-            for (float o = 40f; o <= _hillDepth; o += 6f) offsets.Add(o);
-            const float spacing = 3f;
-            float z0 = -60f, z1 = _g.Length + 80f;
-            int nl = offsets.Count;
-            int nz = Mathf.CeilToInt((z1 - z0) / spacing) + 1;
+            const float reach = 3200f;
+            // Columns: u < 0 spans the channel (lateral = TerrainIn * (1 + u)); u >= 0 is the offset past the meadow.
+            var cols = new List<float> { -1f, -0.7f, -0.4f, -0.15f };
+            for (float o = 0.6f; o < TerraceRun + 2f; o += 0.35f) cols.Add(o); // starts past the bed mesh's meadow: no overlap to fight over
+            for (float o = TerraceRun + 2f; o < TerraceRun + 6f; o += 1f) cols.Add(o);
+            for (float o = TerraceRun + 6f; o < 40f; o += 2.5f) cols.Add(o);
+            for (float o = 40f; o <= _hillDepth; o += 6f) cols.Add(o);
+            for (float o = _hillDepth + 12f, step = 12f; o < reach; o += step, step *= 1.08f) cols.Add(o);
+            // Rows: 3 m along the course, growing past the ends, plus the water's two ends.
+            float wStart = -4f, wEnd = _g.Length + ProceduralRiver.RunOut;
+            var rows = new List<float>();
+            for (float z = -60f; z <= _g.Length + 80f + 0.01f; z += 3f) rows.Add(z);
+            rows.Add(wStart); rows.Add(wStart + 0.1f); rows.Add(wEnd - 0.1f); rows.Add(wEnd);
+            for (float step = 3f, z = -60f - step; z > -reach; step *= 1.08f, z -= step) rows.Add(z);
+            for (float step = 3f, z = _g.Length + 80f + step; z < _g.Length + reach; step *= 1.08f, z += step) rows.Add(z);
+            rows.Sort();
+            for (int i = rows.Count - 1; i > 0; i--) if (rows[i] - rows[i - 1] < 0.05f) rows.RemoveAt(i);
+            int nl = cols.Count, nz = rows.Count;
             var verts = new Vector3[nl * nz];
-            var cols = new Color[nl * nz];
+            var vcols = new Color[nl * nz];
             var uvs = new Vector2[nl * nz];
             for (int iz = 0; iz < nz; iz++)
             for (int il = 0; il < nl; il++)
             {
-                float z = z0 + iz * spacing;
-                float lateral = TerrainIn(z) + offsets[il];
+                float z = rows[iz], u = cols[il];
+                float zc = Mathf.Clamp(z, 0f, _g.Length);
+                bool overWater = z > wStart + 0.05f && z < wEnd - 0.05f;
+                float edge = TerrainIn(zc);
+                // Over the water the channel columns span from just past the bank ramp to the meadow edge, 8 cm
+                // under the bed mesh's meadow: wherever that meadow stops short, this floors the gap to the terrace.
+                float inner = HalfWidth(zc) + ProceduralRiver.BankRampLength + 1f;
+                float lateral = u < 0f ? (overWater ? Mathf.Lerp(Mathf.Min(inner, edge - 0.5f), edge, 1f + u) : edge * (1f + u)) : edge + u;
                 int i = iz * nl + il;
                 var flat = World(side, lateral, z, 0f);
-                float y = SurfaceAtPoint(flat.x, z, lateral) + LandRise(lateral, z);
+                // The channel columns take the bed's own meadow height (the two laterals differ a little on a
+                // bend, so the land formula would poke through the bed), 8 cm under it.
+                float y = u < 0f && overWater
+                    ? SurfaceAtPoint(flat.x, z, lateral) + ProceduralRiver.BankShelfHeight - 0.08f
+                    : SurfaceAtPoint(flat.x, z, lateral) + LandRise(lateral, z, zc);
+                // Beyond the built hills (sideways or past the ends): rolling relief and a steady climb to eye level.
+                float overshoot = Mathf.Max(0f, -60f - z, z - (_g.Length + 80f));
+                float beyond = Mathf.Max(u - _hillDepth, overshoot);
+                float far = Mathf.SmoothStep(0f, 1f, beyond / 250f);
+                y += far * (Fbm(flat.x * 0.0009f + 31f, flat.z * 0.0009f, 3) * 90f + Fbm(flat.x * 0.004f, flat.z * 0.004f + 17f, 2) * 12f)
+                   + Mathf.Max(0f, beyond) * 0.06f;
                 verts[i] = new Vector3(flat.x, y, flat.z);
                 float tint = Fbm(lateral * 0.05f + 11f, z * 0.05f, 2);
-                cols[i] = new Color(1f, tint, 0f, 1f);
+                vcols[i] = new Color(1f, tint, 0f, 1f);
                 uvs[i] = new Vector2(verts[i].x, verts[i].z);
             }
             var tris = new List<int>(nl * nz * 6);
@@ -473,7 +579,7 @@ namespace Downstream.World
             }
             var mesh = new Mesh { name = side < 0 ? "HillsL" : "HillsR", indexFormat = IndexFormat.UInt32 };
             mesh.SetVertices(verts);
-            mesh.SetColors(cols);
+            mesh.SetColors(vcols);
             mesh.SetUVs(0, uvs);
             mesh.SetTriangles(tris, 0);
             mesh.RecalculateNormals();
@@ -490,21 +596,19 @@ namespace Downstream.World
             r.SetPropertyBlock(block);
         }
 
-        // ---- scatter ----------------------------------------------------------------------------
-
-        /// <param name="onHills">When true, lIn/lOut are lateral distances from the centreline; otherwise from the channel edge.</param>
         private Vector3 Place(int side, float lIn, float lOut, float z, bool onHills)
         {
             if (onHills)
             {
                 float lateral = Rand(lIn, lOut);
-                return World(side, lateral, z, GroundY(side, lateral, z));
+                return Seat(World(side, lateral, z, GroundY(side, lateral, z)));
             }
             return Meadow(side, Rand(lIn, lOut), z);
         }
 
         private void ScatterTrees(Transform parent, int side, float lIn, float lOut, float per100m, float pineShare, bool onHills)
         {
+            _category = "trees";
             int count = Mathf.RoundToInt(per100m * _g.Length / 100f);
             for (int i = 0; i < count; i++)
             {
@@ -512,7 +616,7 @@ namespace Downstream.World
                 var pos = Place(side, lIn, lOut, z, onHills);
                 float scale = Rand(0.8f, 1.4f);
                 if (_rng.NextDouble() < 0.06) scale *= 1.6f; // the odd landmark tree
-                var yaw = Quaternion.Euler(0f, Rand(0f, 360f), 0f);
+                var yaw = Aligned(Quaternion.Euler(0f, Rand(0f, 360f), 0f), _treeTiltLimit);
                 if (_rng.NextDouble() < pineShare) Pine(parent, pos, yaw, scale);
                 else RoundTree(parent, pos, yaw, scale);
             }
@@ -549,12 +653,13 @@ namespace Downstream.World
         private void ScatterGrass(Transform parent, int side, float lIn, float lOut, float per100m, bool onHills)
         {
             if (!Has(_vendorGrass)) return;
+            _category = "grass";
             int count = Mathf.RoundToInt(per100m * _g.Length / 100f);
             for (int i = 0; i < count; i++)
             {
                 float z = Rand(0f, _g.Length);
                 var pos = Place(side, lIn, lOut, z, onHills);
-                VendorProp(parent, Pick(_vendorGrass), pos, Quaternion.Euler(0f, Rand(0f, 360f), 0f), Rand(0.45f, 0.9f), false);
+                VendorProp(parent, Pick(_vendorGrass), pos, Aligned(Quaternion.Euler(0f, Rand(0f, 360f), 0f), 90f), Rand(0.45f, 0.9f), false);
             }
         }
 
@@ -578,26 +683,29 @@ namespace Downstream.World
 
         private void ScatterBushes(Transform parent, int side, float lIn, float lOut, float per100m, bool onHills)
         {
+            _category = "bushes";
             int count = Mathf.RoundToInt(per100m * _g.Length / 100f);
             for (int i = 0; i < count; i++)
             {
                 float z = Rand(-10f, _g.Length + 20f);
                 var pos = Place(side, lIn, lOut, z, onHills);
                 float r = Rand(0.9f, 1.8f);
-                if (Has(_vendorBushes)) { VendorProp(parent, Pick(_vendorBushes), pos, Quaternion.Euler(0f, Rand(0f, 360f), 0f), r * 1.1f, true); continue; }
+                if (Has(_vendorBushes)) { VendorProp(parent, Pick(_vendorBushes), pos, Aligned(Quaternion.Euler(0f, Rand(0f, 360f), 0f), 20f), r * 1.1f, true); continue; }
                 Prop(parent, "Bush", Pick(_canopyVariants), Pick(_canopies), pos + Vector3.up * (r * 0.45f), Quaternion.Euler(0f, Rand(0f, 360f), 0f), new Vector3(r, r * 0.7f, r));
             }
         }
 
         private void ScatterRocks(Transform parent, int side, float lIn, float lOut, float per100m, bool onHills)
         {
+            _category = "rocks";
             int count = Mathf.RoundToInt(per100m * _g.Length / 100f);
             for (int i = 0; i < count; i++)
             {
                 float z = Rand(0f, _g.Length);
                 var pos = Place(side, lIn, lOut, z, onHills);
                 float s = Rand(0.5f, 1.6f);
-                if (Has(_vendorRocks)) { VendorProp(parent, Pick(_vendorRocks), pos, Quaternion.Euler(0f, Rand(0f, 360f), 0f), s * 1.2f, true); continue; }
+                // Rocks bed in: a seventh of their height under the turf, and they lie with the slope.
+                if (Has(_vendorRocks)) { VendorProp(parent, Pick(_vendorRocks), pos - Vector3.up * (s * 1.2f * 0.14f), Aligned(Quaternion.Euler(0f, Rand(0f, 360f), 0f), 90f), s * 1.2f, true); continue; }
                 Prop(parent, "Rock", Pick(_rockVariants), _rock, pos + Vector3.up * (s * 0.35f), Quaternion.Euler(0f, Rand(0f, 360f), 0f), new Vector3(s, s, s));
             }
         }
@@ -620,6 +728,7 @@ namespace Downstream.World
 
         private void ScatterFlowers(Transform parent, int side, float lIn, float lOut)
         {
+            _category = "flowers";
             for (float z = 25f; z < _g.Length; z += Rand(28f, 60f))
             {
                 var centre = Meadow(side, Rand(lIn, lOut), z);
@@ -628,12 +737,15 @@ namespace Downstream.World
                 if (Has(_vendorFlowers))
                 {
                     for (int i = 0; i < n / 2; i++)
-                        VendorProp(parent, Pick(_vendorFlowers), centre + new Vector3(Rand(-2.2f, 2.2f), 0f, Rand(-2.2f, 2.2f)), Quaternion.Euler(0f, Rand(0f, 360f), 0f), Rand(0.5f, 0.9f), false);
+                    {
+                        var at = Seat(centre + new Vector3(Rand(-2.2f, 2.2f), 0f, Rand(-2.2f, 2.2f)));
+                        VendorProp(parent, Pick(_vendorFlowers), at, Aligned(Quaternion.Euler(0f, Rand(0f, 360f), 0f), 90f), Rand(0.5f, 0.9f), false);
+                    }
                     continue;
                 }
                 for (int i = 0; i < n; i++)
                 {
-                    var pos = centre + new Vector3(Rand(-1.6f, 1.6f), 0.28f, Rand(-1.6f, 1.6f));
+                    var pos = Seat(centre + new Vector3(Rand(-1.6f, 1.6f), 0f, Rand(-1.6f, 1.6f))) + Vector3.up * 0.28f;
                     Prop(parent, "Flower", _flower, mat, pos, Quaternion.identity, Vector3.one * Rand(0.8f, 1.3f), false);
                     Prop(parent, "Stem", _reedMesh, _reed, pos - Vector3.up * 0.28f, Quaternion.identity, new Vector3(0.5f, 0.3f, 0.5f), false);
                 }
@@ -642,6 +754,7 @@ namespace Downstream.World
 
         private void LanternPosts(Transform parent, int side)
         {
+            _category = "props";
             for (float z = 45f + (side > 0 ? 35f : 0f); z < _g.Length - 20f; z += 70f)
             {
                 var pos = Meadow(side, 2.4f, z);
@@ -654,6 +767,7 @@ namespace Downstream.World
 
         private void BuildStoryClusters(Transform parent)
         {
+            _category = "props";
             int side = 1;
             for (float z = 60f; z < _g.Length - 40f; z += 100f)
             {

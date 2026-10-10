@@ -130,8 +130,10 @@ Shader "Downstream/Greybox Ground"
                 {
                     // World-planar tiling, two scales so the repeat never reads at race height or from the hills.
                     float2 uv = IN.positionWS.xz / _TexScale;
-                    float2 uv2 = IN.positionWS.xz / (_TexScale * 3.7) + 0.31;
-                    float3 grassTex = lerp(SAMPLE_TEXTURE2D(_GrassMap, sampler_GrassMap, uv).rgb, SAMPLE_TEXTURE2D(_GrassMap, sampler_GrassMap, uv2).rgb, 0.4);
+                    // The second sample is turned a quarter turn and weighted equally, so no single feature of the
+                    // tile repeats on a grid.
+                    float2 uv2 = IN.positionWS.zx / (_TexScale * 2.9) + 0.31;
+                    float3 grassTex = lerp(SAMPLE_TEXTURE2D(_GrassMap, sampler_GrassMap, uv).rgb, SAMPLE_TEXTURE2D(_GrassMap, sampler_GrassMap, uv2).rgb, 0.5);
                     float3 meadowTex = SAMPLE_TEXTURE2D(_MeadowMap, sampler_MeadowMap, uv * 1.4).rgb;
                     float3 earthTex = SAMPLE_TEXTURE2D(_EarthMap, sampler_EarthMap, uv * 1.2).rgb;
                     float3 rockTex = SAMPLE_TEXTURE2D(_RockMap, sampler_RockMap, uv * 0.8).rgb;
@@ -147,7 +149,14 @@ Shader "Downstream/Greybox Ground"
                     float3 steepColour = lerp(Tinted(rockTex, _CliffColor.rgb), Tinted(earthTex, _EarthColor.rgb), g);
                     albedo = lerp(flat, steepColour, steep);
                     albedo *= 1.0 + (IN.tint - 0.5) * 0.10;
-                    albedo *= 1.0 + (m - 0.5) * 2.0 * _DetailStrength * 0.5;
+                    // Far off, the tiling reads as a dot grid however it is scaled: the mottling goes first
+                    // (60-300 m), then the texture and its normal detail fade to the palette's flat colour
+                    // (150-600 m); the fog takes over after.
+                    float camDist = distance(IN.positionWS, _WorldSpaceCameraPos);
+                    float farFade = smoothstep(80.0, 350.0, camDist);
+                    albedo *= 1.0 + (m - 0.5) * 2.0 * _DetailStrength * 0.5 * (1.0 - smoothstep(60.0, 300.0, camDist));
+                    float3 flatFar = lerp(_GrassColor.rgb * 0.78, lerp(_CliffColor.rgb, _EarthColor.rgb, g) * 0.9, steep) * (1.0 + (IN.tint - 0.5) * 0.10);
+                    albedo = lerp(albedo, flatFar, farFade);
 
                     // Normal detail: the maps are OpenGL (green up), applied in a world-planar frame.
                     float3 nGrass = UnpackNormal(SAMPLE_TEXTURE2D(_GrassNormal, sampler_GrassNormal, uv));
@@ -159,7 +168,7 @@ Shader "Downstream/Greybox Ground"
                     // Tangent along world x, bitangent along world z: exact on flat ground, close enough on the slopes.
                     float3 T = normalize(cross(float3(0, 0, 1), N));
                     float3 B = cross(N, T);
-                    N = normalize(N + (nTS.x * T + nTS.y * B) * _NormalStrength);
+                    N = normalize(N + (nTS.x * T + nTS.y * B) * _NormalStrength * (1.0 - farFade));
                 }
                 else
                 {
