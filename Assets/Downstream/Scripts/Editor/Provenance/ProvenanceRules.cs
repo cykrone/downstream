@@ -10,7 +10,7 @@ namespace Downstream.Editor.Provenance
         public static bool NeedsRecord(string path)
         {
             if (!path.StartsWith("Assets/")) return false;
-            if (path.StartsWith("Assets/_Project/Scripts/") || path.StartsWith("Assets/_Project/Tests/") || path.StartsWith("Assets/_Project/Settings/")) return false;
+            if (path.StartsWith("Assets/Downstream/Scripts/") || path.StartsWith("Assets/Downstream/Tests/") || path.StartsWith("Assets/Downstream/Settings/")) return false;
             string ext = System.IO.Path.GetExtension(path).ToLowerInvariant();
             switch (ext)
             {

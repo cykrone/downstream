@@ -33,7 +33,7 @@ namespace Downstream.Editor.Provenance
     [CreateAssetMenu(menuName = "Downstream/Provenance Database", fileName = "ProvenanceDatabase")]
     public sealed class ProvenanceDatabase : ScriptableObject
     {
-        public const string DefaultPath = "Assets/_Project/Settings/ProvenanceDatabase.asset";
+        public const string DefaultPath = "Assets/Downstream/Settings/ProvenanceDatabase.asset";
 
         [SerializeField] private List<ProvenanceRecord> _records = new List<ProvenanceRecord>();
 

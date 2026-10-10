@@ -12,6 +12,6 @@
     <RootNamespace>Downstream.Core</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../../../Assets/_Project/Scripts/Core/**/*.cs" />
+    <Compile Include="../../../Assets/Downstream/Scripts/Core/**/*.cs" />
   </ItemGroup>
 </Project>

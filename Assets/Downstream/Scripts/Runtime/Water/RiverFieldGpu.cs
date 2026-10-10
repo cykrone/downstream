@@ -7,7 +7,7 @@ namespace Downstream.Water
     /// <summary>
     /// Uploads a <see cref="RiverWater"/> to the GPU for the water shader: the River Field's tiles as
     /// two <see cref="Texture2DArray"/>s (one slice per existing tile) plus a tile-index texture, and
-    /// the analytic layers as shader globals. The shader side is Assets/_Project/Shaders/RiverField.hlsl,
+    /// the analytic layers as shader globals. The shader side is Assets/Downstream/Shaders/RiverField.hlsl,
     /// which blends the same four texels in float so it returns the physics' numbers.
     /// Textures are 32-bit float: no half rounding, no filtering, no mipmaps.
     /// </summary>

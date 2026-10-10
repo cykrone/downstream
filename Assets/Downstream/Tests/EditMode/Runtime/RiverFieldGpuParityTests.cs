@@ -13,7 +13,7 @@ namespace Downstream.Tests
     /// </summary>
     public sealed class RiverFieldGpuParityTests
     {
-        private const string ComputePath = "Assets/_Project/Shaders/RiverFieldParity.compute";
+        private const string ComputePath = "Assets/Downstream/Shaders/RiverFieldParity.compute";
 
         [Test]
         public void GpuSamplerMatchesCpuSampler()

@@ -29,7 +29,7 @@ and online.
 4. Run **Downstream > Create Greybox Race Scene**. It creates and configures the URP assets, the
    lighting and post-processing from the design doc's rendering rules, a 1.5 km test river with a 6 m
    falls and a flood pulse, terraced block-kit banks, a boat and a chase camera, and saves
-   `Assets/_Project/Scenes/GreyboxRace.unity`. Run it again any time to rebuild the scene with the
+   `Assets/Downstream/Scenes/GreyboxRace.unity`. Run it again any time to rebuild the scene with the
    current look.
 5. Press Play. After a 3 s countdown, the keyboard and the first gamepad drive boat 1 (RT/W throttle,
    LT/S brake, stick or A/D steer, RB/Space hop and drift, LB/E item: tap to use, hold to trail it
@@ -40,7 +40,7 @@ and online.
 ## Layout
 
 ```
-Assets/_Project/
+Assets/Downstream/
   Scripts/
     Core/       Downstream.Core     pure C#, no UnityEngine: water, boat sim, race, items, AI, prediction
     Runtime/    Downstream.Runtime  MonoBehaviours: race director, views, cameras, input, greybox water, block kit and set dressing
@@ -77,7 +77,7 @@ secrets are added.
 ## Asset provenance
 
 Every content asset (textures, models, audio, fonts, materials, prefabs) needs an approved record in
-`Assets/_Project/Settings/ProvenanceDatabase.asset` (create it with
+`Assets/Downstream/Settings/ProvenanceDatabase.asset` (create it with
 *Create > Downstream > Provenance Database*). New imports are stamped *Pending* automatically.
 Release builds fail if any asset in a built scene is a placeholder or unapproved; development builds
 only warn.

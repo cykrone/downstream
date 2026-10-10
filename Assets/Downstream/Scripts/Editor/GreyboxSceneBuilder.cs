@@ -25,7 +25,7 @@ namespace Downstream.Editor
     /// </summary>
     public static class GreyboxSceneBuilder
     {
-        private const string Root = "Assets/_Project";
+        private const string Root = "Assets/Downstream";
         private const string SettingsDir = Root + "/Settings";
         private const string TrackDir = Root + "/Tracks/Greybox";
         private const string MegaKitDir = Root + "/Art/Vendor/StylizedNatureMegaKit/Models";

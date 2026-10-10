@@ -5,13 +5,13 @@ using UnityEngine;
 namespace Downstream.Editor
 {
     /// <summary>
-    /// Import rules for the CC0 vendor packs under Assets/_Project/Art/Vendor so they drop straight into
+    /// Import rules for the CC0 vendor packs under Assets/Downstream/Art/Vendor so they drop straight into
     /// the greybox look: URP Lit with the pack's textures, matte, foliage alpha-clipped and two-sided,
     /// and the sky HDRI imported as a readable lat-long map the scene builder can measure.
     /// </summary>
     public sealed class VendorAssetPostprocessor : AssetPostprocessor
     {
-        private const string VendorRoot = "Assets/_Project/Art/Vendor/";
+        private const string VendorRoot = "Assets/Downstream/Art/Vendor/";
 
         private bool IsVendor => assetPath.Replace('\\', '/').StartsWith(VendorRoot);
 

@@ -158,7 +158,7 @@ with speed as well as boost. `ItemWorldView` shows pickups as flagged floats on 
 spiked spheres, logs as capped trunks, pikes as finned bodies and whirlpools as a spinning disc with
 spiral foam arms.
 
-Under `Assets/_Project/Art/Vendor` sit two CC0 packs, tracked with Git LFS: the Stylized Nature
+Under `Assets/Downstream/Art/Vendor` sit two CC0 packs, tracked with Git LFS: the Stylized Nature
 MegaKit (Quaternius; 68 models of trees, pines, bushes, rocks, grass, flowers and mushrooms with
 their textures) and a Poly Haven sky HDRI. `VendorAssetPostprocessor` imports them straight into the
 look: URP Lit, matte, foliage alpha-clipped and two-sided, the kit's autumn leaf texture swapped for
