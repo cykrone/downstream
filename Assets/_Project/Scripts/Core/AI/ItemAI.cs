@@ -20,14 +20,27 @@ namespace Downstream.Core.AI
         /// <summary>Seconds to sit on a new item before using it. Easy AI uses items late (design).</summary>
         public float Patience { get; set; } = 0.6f;
 
+        /// <summary>Chance of using each item at all; Easy AI sometimes sits on one for good (design).</summary>
+        public float UseChance { get; set; } = 1f;
+
         private readonly int _boat;
         private float _heldFor;
         private bool _holding;
         private bool _pressedLastTick;
+        private bool _keepThisOne;
+        private SimRandom _rng;
 
-        public ItemAI(int boat)
+        public ItemAI(int boat, ulong seed = 0)
         {
             _boat = boat;
+            _rng = new SimRandom(seed + (ulong)boat, 0x17E3u);
+        }
+
+        /// <summary>Sets patience and willingness from a difficulty level.</summary>
+        public void Apply(in AIDifficulty difficulty)
+        {
+            Patience = difficulty.ItemPatience;
+            UseChance = difficulty.ItemUseChance;
         }
 
         /// <summary>Returns the state of the item button for this tick.</summary>
@@ -52,8 +65,10 @@ namespace Downstream.Core.AI
                 return Release();
             }
 
+            // Each new item gets one roll on whether this boat will use it at all.
+            if (_heldFor == 0f) _keepThisOne = UseChance < 1f && _rng.NextFloat() >= UseChance;
             _heldFor += BoatSimulator.TickDelta;
-            if (_heldFor < Patience) return Release();
+            if (_heldFor < Patience || _keepThisOne) return Release();
 
             var held = mine.Held;
             if (ItemRules.CanHoldBehind(held) && NearestBehind(sim, out _) < ThreatRange)

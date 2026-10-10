@@ -82,6 +82,29 @@ button like a player would.
 On the Unity side `RaceDirector` owns the session, `ItemWorldView` draws items as greybox primitives,
 and `GreyboxRaceHud` is an IMGUI stand-in for the UI Toolkit HUD.
 
+## AI
+
+`RacingLineSet.Build` generates each track's racing lines from the centreline and the gameplay water,
+the offline tool the design describes. Every 5 m it scans a cross-section of the river, finds the
+navigable channels (deep enough, 3 m clear of banks and rocks, 2 m clear of holes) and picks an
+offset per family: **safe** (most room, no hazards), **current lane** (fastest water), **aggressive**
+(inside of the coming bend, fast water, crests) and, where a rock or island splits the channel,
+a **shortcut** through the other side. Offsets are smoothed and rate-limited so a boat can follow
+them, and each line is timed at a nominal speed so lines can be compared. Designers can overwrite
+offsets and call `Retime`.
+
+`RacerAI` drives one boat. Every 0.5 s it scores the lines over the next 150 m (estimated time,
+rivals in the lane, items held, personality) and switches after its reaction delay; a look-ahead
+controller follows the chosen line, reads the water at 3 points ahead to steer round rocks and boof
+holes, drifts bends that ask for more turn than the keel gives, and aims for clean landings.
+`AIDifficulty` is the design's table (reaction delay, line noise, max drift tier, shortcut use,
+mistakes per race, item patience); nothing scales boat speed. `MistakeBudget` fixes each AI's
+mistakes (missed drift tier, slapped landing, wrong channel, throttle lift, over-correction) from
+the seed at race start, never by position. `RivalRoster` holds the 8 named rivals and their traits
+(Line Thief, Shortcut Hunter, Drafter, Bully, Steady, Current Reader, Daredevil); the names are
+placeholders. `AdaptiveDifficulty` moves the level between races only. Finished players hand their
+boat to a mistake-free Expert driver.
+
 ## Rendering
 
 `Shaders/RiverWater.shader` (URP, Forward+) draws the water from the River Field alone: the vertex
@@ -173,5 +196,4 @@ sky term. Canopies, bushes and pines are smooth-shaded: the design wants chunky,
 1. Handling prototype and the month-4 fun gate: tune `BoatTuning` with playtesters.
 2. Month-1 split-screen performance spike on a GTX 1660 Super (4 URP cameras).
 3. River Field baker (spline authoring, shallow-water solve, combing); reflections (probes, SSR) and VFX spray on the water.
-4. Racing lines, AI difficulty levels and the seeded mistake budget.
-5. The netcode spike (Steam relay, snapshots, reconciliation), including item events.
+4. The netcode spike (Steam relay, snapshots, reconciliation), including item events.

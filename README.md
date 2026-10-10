@@ -34,7 +34,7 @@ and online.
 5. Press Play. After a 3 s countdown, the keyboard and the first gamepad drive boat 1 (RT/W throttle,
    LT/S brake, stick or A/D steer, RB/Space hop and drift, LB/E item: tap to use, hold to trail it
    behind as a shield); each further connected gamepad adds a split-screen player. The other boats
-   are AI. Drive through the yellow buoys for items. At the results, Enter or A rematches.
+   are the 8 named AI rivals; set their difficulty on the RaceDirector (AI Level). Drive through the yellow buoys for items. At the results, Enter or A rematches.
 6. Optional: `Tools/setup-unityyamlmerge.sh <path to UnityYAMLMerge>` to merge scenes and prefabs.
 
 ## Layout
@@ -66,7 +66,9 @@ within one tick of 0.7 / 1.4 / 2.2 s, the landing rule, no capsizing under rando
 and immunity timings, item tables summing to 100%, deterministic replays and own-boat reconciliation.
 They also cover the river features
 (eddy pivots, holes, crests, wake edges, bumps), the race loop (countdown, finish, respawns, cup
-points) and every item rule, and race 8 AI boats headless down a greybox river.
+points) and every item rule, the racing lines and AI (every difficulty finishes without stalling,
+Expert beats Easy, drifts stay within the tier, the mistake budget matches the table), and race 8 AI
+rivals with items headless down a greybox river.
 
 CI runs these on every push (`.github/workflows/core-tests.yml`). The Unity EditMode run
 (`.github/workflows/unity.yml`) starts once `UNITY_LICENSE`, `UNITY_EMAIL` and `UNITY_PASSWORD`

@@ -33,6 +33,7 @@ namespace Downstream.Race
         [SerializeField] private SpeedClass _speedClass = SpeedClass.Rapid;
         [SerializeField] private HullType _playerHull = HullType.Runabout;
         [SerializeField] private ItemRuleset _ruleset = ItemRuleset.Standard;
+        [SerializeField] private AILevel _aiLevel = AILevel.Normal;
         [Tooltip("Distance between item buoy rows, metres (design: every 20-25 s of racing).")]
         [SerializeField] private float _buoyRowSpacing = 400f;
         [SerializeField] private LayerMask _worldCollision = ~0;
@@ -44,7 +45,7 @@ namespace Downstream.Race
         private readonly FixedStepClock _clock = new FixedStepClock(BoatSimulator.TickDelta);
         private readonly BoatInput[] _inputs = new BoatInput[BoatsPerRace];
         private readonly IBoatInputSource[] _humanSources = new IBoatInputSource[BoatsPerRace];
-        private readonly LineFollowerAI[] _drivers = new LineFollowerAI[BoatsPerRace];
+        private readonly RacerAI[] _drivers = new RacerAI[BoatsPerRace];
         private readonly ItemAI[] _gunners = new ItemAI[BoatsPerRace];
         private readonly RaceEvents[] _frameRaceEvents = new RaceEvents[BoatsPerRace];
         private readonly ItemEvents[] _frameItemEvents = new ItemEvents[BoatsPerRace];
@@ -94,29 +95,41 @@ namespace Downstream.Race
                 if (_waterMesh != null) _waterMesh.Build(_water.Water, _river);
             }
             var water = _water.Water;
-            var track = new RaceTrack(_river.SampleCentreline());
+            if (_water.Lines == null)
+            {
+                // Racing lines depend only on the river, so they are generated once per river, like the water.
+                _water.Lines = RacingLineSet.Build(new RaceTrack(_river.SampleCentreline()), water);
+            }
+            var lines = _water.Lines;
+            var track = lines.Track;
+            _raceNumber++;
+            var difficulty = AIDifficulty.For(_aiLevel);
+            // Finished players hand over to a mistake-free driver on their own boat.
+            var autopilot = AIDifficulty.For(AILevel.Expert);
+            autopilot.MistakesMin = autopilot.MistakesMax = 0;
 
             if (_players != null) _players.JoinConnectedDevices();
             _humans = _players != null ? Mathf.Min(_players.Players.Count, BoatsPerRace) : 0;
 
             var tunings = new BoatTuning[BoatsPerRace];
             var starts = new BoatState[BoatsPerRace];
-            var aiHulls = new[] { HullType.Skiff, HullType.Jetboat, HullType.Runabout, HullType.Hydrofoil, HullType.Tug };
             for (int i = 0; i < BoatsPerRace; i++)
             {
                 // Humans start at the back of the grid, as in a kart racer's first race.
                 int slot = BoatsPerRace - 1 - i;
-                var hull = i < _humans ? _playerHull : aiHulls[i % aiHulls.Length];
+                bool human = i < _humans;
+                var rival = human ? new RivalProfile { Name = $"P{i + 1}", Hull = _playerHull } : RivalRoster.Get(i - _humans);
+                var hull = rival.Hull;
                 tunings[i] = BoatTuning.Create(HullStats.For(hull), _speedClass);
                 starts[i] = RaceGrid.Slot(track, slot);
                 _humanSources[i] = i < _humans ? _players.Players[i] : null;
-                _drivers[i] = new LineFollowerAI(track) { LateralOffset = ((i % 3) - 1) * 4f, Throttle = 0.92f + 0.01f * i };
-                _gunners[i] = new ItemAI(i);
+                _drivers[i] = new RacerAI(lines, tunings[i], rival, human ? autopilot : difficulty, i, _raceNumber);
+                _gunners[i] = new ItemAI(i, _raceNumber);
+                _gunners[i].Apply(human ? autopilot : difficulty);
             }
 
             var sim = new RaceSimulation(water, track, tunings, starts);
             _race = new RaceSession(sim);
-            _raceNumber++;
             _race.Items = new ItemSystem(BoatsPerRace, ItemSystem.Layout(track, water, _buoyRowSpacing), 0x5EED0000u + _raceNumber, _ruleset);
             _previous = new RaceSnapshot(BoatsPerRace);
             _previous.CopyFrom(sim.State);
@@ -124,7 +137,7 @@ namespace Downstream.Race
             for (int i = 0; i < BoatsPerRace; i++)
             {
                 var view = Instantiate(_boatPrefab, starts[i].Position.ToUnity(), UnityConversions.BoatRotation(starts[i]));
-                view.name = i < _humans ? $"Boat P{i + 1}" : $"Boat AI{i}";
+                view.name = i < _humans ? $"Boat P{i + 1}" : $"Boat {_drivers[i].Profile.Name}";
                 view.BoatIndex = i;
                 view.Present(starts[i]);
                 _views.Add(view);
@@ -204,7 +217,7 @@ namespace Downstream.Race
                     }
                     else
                     {
-                        _inputs[i] = _drivers[i].Think(sim.State.Boats[i]);
+                        _inputs[i] = _drivers[i].Think(sim, _race.Items.Boats[i].Held);
                         _inputs[i].UseItem = _gunners[i].Think(_race, _race.Items);
                     }
                 }
@@ -237,6 +250,7 @@ namespace Downstream.Race
         {
             public RiverDefinition Source;
             public Core.Water.RiverWater Water;
+            public RacingLineSet Lines;
         }
     }
 }
