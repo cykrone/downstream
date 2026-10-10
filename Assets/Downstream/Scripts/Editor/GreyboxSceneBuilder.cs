@@ -118,7 +118,8 @@ namespace Downstream.Editor
             itemSo.FindProperty("_whirlMaterial").objectReferenceValue = EnsureSprayMaterial(litShader);
             itemSo.ApplyModifiedPropertiesWithoutUndo();
 
-            var director = new GameObject("Race Director", typeof(LocalPlayerJoin), typeof(RaceDirector), typeof(GreyboxRaceHud));
+            var director = new GameObject("Race Director", typeof(LocalPlayerJoin), typeof(RaceDirector), typeof(GreyboxRaceHud), typeof(Downstream.Items.RaceEffects));
+            director.GetComponent<Downstream.Items.RaceEffects>().Configure(director.GetComponent<RaceDirector>(), EnsureSprayMaterial(litShader), EnsureSparkMaterial(litShader));
             var so = new SerializedObject(director.GetComponent<RaceDirector>());
             so.FindProperty("_river").objectReferenceValue = river;
             so.FindProperty("_boatPrefab").objectReferenceValue = boatPrefab;
@@ -440,6 +441,12 @@ namespace Downstream.Editor
             return mat;
         }
 
+        private static Material EnsureSparkMaterial(Shader fallback)
+        {
+            var shader = Shader.Find("Downstream/Greybox Spark") ?? fallback;
+            return EnsureMaterial(PrefabDir + "/GreyboxSpark.mat", shader, Color.white, 0f);
+        }
+
         private static Material EnsureSprayMaterial(Shader fallback)
         {
             var shader = Shader.Find("Downstream/Greybox Spray") ?? fallback;
@@ -524,7 +531,7 @@ namespace Downstream.Editor
             animator.Configure(torso, head, paddle, armL, armR);
             // The sim does all collision through one query proxy; views carry no colliders.
             var effects = root.AddComponent<BoatEffects>();
-            effects.Configure(wakeMat, sprayMat);
+            effects.Configure(wakeMat, sprayMat, EnsureSparkMaterial(litShader));
             var view = root.AddComponent<BoatView>();
             var so = new SerializedObject(view);
             so.FindProperty("_hull").objectReferenceValue = hull.transform;

@@ -9,13 +9,17 @@ namespace Downstream.Boat
     /// <summary>
     /// Motion effects that sell speed: a stern wake and two bow wakes left on the water, bow spray
     /// that scales with speed, drift spray off the outside of a slide (coloured by tier), a boost
-    /// plume and a landing splash. Everything is driven from the presented <see cref="BoatState"/>
-    /// so it stays in step with the sim and costs nothing when the boat is still.
+    /// plume and a landing splash, plus one-off accents on the sim's events: a shock ring and glints
+    /// on a hop or a clean landing, a tier-coloured flash when a drift charges up, a boost kick,
+    /// spray between bumping hulls, dust and a ring off a bank hit, a churn when a hole grabs the hull.
+    /// Everything is driven from the presented <see cref="BoatState"/> so it stays in step with the
+    /// sim and costs nothing when the boat is still.
     /// </summary>
     public sealed class BoatEffects : MonoBehaviour
     {
         [SerializeField] private Material _wake;
         [SerializeField] private Material _spray;
+        [SerializeField] private Material _spark;
         [SerializeField] private float _fullWakeSpeed = 18f;
 
         private static readonly Color[] DriftTiers =
@@ -27,15 +31,17 @@ namespace Downstream.Boat
         };
 
         private WakeRibbon _stern, _port, _starboard;
-        private ParticleSystem _bow, _driftL, _driftR, _boost;
-        private Material _wakeInstance, _sprayInstance;
+        private ParticleSystem _bow, _driftL, _driftR, _boost, _ring, _glints, _dust;
+        private Material _wakeInstance, _sprayInstance, _ringInstance, _sparkInstance;
+        private byte _prevTier;
         private float _prevSlap;
         private bool _wasAirborne;
 
-        public void Configure(Material wake, Material spray)
+        public void Configure(Material wake, Material spray, Material spark = null)
         {
             _wake = wake;
             _spray = spray;
+            _spark = spark;
         }
 
         private void Awake()
@@ -58,6 +64,21 @@ namespace Downstream.Boat
             _boost = Spray("Boost Plume", new Vector3(0f, 0.2f, -2f), Quaternion.Euler(-25f, 180f, 0f), 22f, 0.25f);
             var boostEm = _boost.emission; boostEm.rateOverTime = 90f; boostEm.rateOverDistance = 0f;
             var boostMain = _boost.main; boostMain.startSpeed = new ParticleSystem.MinMaxCurve(4f, 7f); boostMain.startSize = new ParticleSystem.MinMaxCurve(0.5f, 1.1f);
+
+            // Event accents: a flat ring on the water, glints, and dust off the bank.
+            _ringInstance = new Material(_spray); _ringInstance.SetTexture("_BaseMap", WaterTextures.RingSprite);
+            _sparkInstance = new Material(_spark != null ? _spark : _spray); _sparkInstance.SetTexture("_BaseMap", WaterTextures.StarSprite);
+            _ring = Spray("Ring", Vector3.zero, Quaternion.identity, 0f, 0f);
+            var ringMain = _ring.main; ringMain.gravityModifier = 0f; ringMain.maxParticles = 16;
+            _ring.GetComponent<ParticleSystemRenderer>().sharedMaterial = _ringInstance;
+            _ring.GetComponent<ParticleSystemRenderer>().renderMode = ParticleSystemRenderMode.HorizontalBillboard;
+            var ringSize = _ring.sizeOverLifetime; ringSize.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0f, 0.4f), new Keyframe(0.35f, 1f), new Keyframe(1f, 2.6f)));
+            _glints = Spray("Glints", Vector3.zero, Quaternion.identity, 0f, 0f);
+            var glintMain = _glints.main; glintMain.gravityModifier = 0.3f; glintMain.maxParticles = 120;
+            _glints.GetComponent<ParticleSystemRenderer>().sharedMaterial = _sparkInstance;
+            var glintSize = _glints.sizeOverLifetime; glintSize.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(1f, 0.3f)));
+            _dust = Spray("Dust", Vector3.zero, Quaternion.identity, 0f, 0f);
+            var dustMain = _dust.main; dustMain.gravityModifier = 0.6f; dustMain.maxParticles = 80;
         }
 
         private void OnDestroy()
@@ -65,6 +86,8 @@ namespace Downstream.Boat
             _stern?.Dispose(); _port?.Dispose(); _starboard?.Dispose();
             if (_wakeInstance != null) Destroy(_wakeInstance);
             if (_sprayInstance != null) Destroy(_sprayInstance);
+            if (_ringInstance != null) Destroy(_ringInstance);
+            if (_sparkInstance != null) Destroy(_sparkInstance);
         }
 
         private void OnDisable()
@@ -109,9 +132,19 @@ namespace Downstream.Boat
                 _bow.Emit(28);
                 _driftL.Emit(14);
                 _driftR.Emit(14);
+                Ring(s.SlapTime > 0f ? 4.5f : 3.2f, 0.6f, Color.white);
             }
             _wasAirborne = s.Airborne;
             _prevSlap = s.SlapTime;
+
+            // Drift tier charged: a flash in the tier's colour off both sides and a ring under the stern.
+            if (s.DriftTier > _prevTier && wet)
+            {
+                var tierColour = DriftTiers[Mathf.Clamp(s.DriftTier, 0, DriftTiers.Length - 1)];
+                Glints(transform.position + Vector3.up * 0.5f, 10 + 6 * s.DriftTier, 3f, 7f, tierColour);
+                Ring(2.2f + 0.5f * s.DriftTier, 0.45f, tierColour);
+            }
+            _prevTier = s.DriftTier;
 
         }
 
@@ -119,13 +152,68 @@ namespace Downstream.Boat
         public void OnEvents(BoatEvents events)
         {
             if (_bow == null) return;
+            var p = transform.position;
             if ((events & BoatEvents.HitWall) != 0)
             {
                 _driftL.Emit(16);
                 _driftR.Emit(16);
                 _bow.Emit(new ParticleSystem.EmitParams { startSize = 1.4f, startLifetime = 0.9f, velocity = Vector3.up * 3f }, 1);
                 _bow.Emit(20);
+                Ring(3.4f, 0.5f, Color.white);
+                // Dust and grit off the bank, thrown back along the hull.
+                for (int n = 0; n < 14; n++)
+                    _dust.Emit(new ParticleSystem.EmitParams
+                    {
+                        position = p + transform.forward * Random.Range(-1.5f, 2f) + Vector3.up * 0.4f,
+                        velocity = -transform.forward * Random.Range(1f, 3f) + Vector3.up * Random.Range(1f, 3f) + Random.insideUnitSphere,
+                        startSize = Random.Range(0.4f, 0.9f), startLifetime = Random.Range(0.5f, 0.9f),
+                        startColor = new Color(0.55f, 0.45f, 0.32f, 0.7f), rotation = Random.Range(0f, 360f),
+                    }, 1);
             }
+            if ((events & BoatEvents.Hopped) != 0)
+            {
+                Ring(2.6f, 0.45f, Color.white);
+                _bow.Emit(10);
+            }
+            if ((events & BoatEvents.LandedClean) != 0)
+                Glints(p + Vector3.up * 0.6f, 14, 2.5f, 6f, new Color(0.8f, 1f, 1f, 1f));
+            if ((events & BoatEvents.BoostStarted) != 0)
+            {
+                _boost.Emit(24);
+                Glints(p - transform.forward * 1.5f + Vector3.up * 0.4f, 10, 2f, 5f, new Color(1f, 0.9f, 0.6f, 1f));
+            }
+            if ((events & BoatEvents.BoatBump) != 0)
+            {
+                _driftL.Emit(8);
+                _driftR.Emit(8);
+                Glints(p + Vector3.up * 0.5f, 6, 2f, 4f, Color.white);
+            }
+            if ((events & BoatEvents.HoleGrabbed) != 0)
+            {
+                Ring(3.6f, 0.7f, Color.white);
+                _bow.Emit(22);
+                _driftL.Emit(10);
+                _driftR.Emit(10);
+            }
+            if ((events & BoatEvents.EnteredEddy) != 0)
+                Ring(2.4f, 0.6f, new Color(0.8f, 0.92f, 1f, 0.8f));
+        }
+
+        /// <summary>A flat ring under the hull that spreads and fades.</summary>
+        private void Ring(float size, float life, Color colour)
+        {
+            _ring.Emit(new ParticleSystem.EmitParams { position = transform.position + Vector3.up * 0.1f, velocity = Vector3.zero, startSize = size, startLifetime = life, startColor = colour }, 1);
+        }
+
+        private void Glints(Vector3 at, int count, float speedMin, float speedMax, Color colour)
+        {
+            for (int n = 0; n < count; n++)
+                _glints.Emit(new ParticleSystem.EmitParams
+                {
+                    position = at + Random.insideUnitSphere * 0.4f,
+                    velocity = (Vector3.up + Random.insideUnitSphere * 1.2f).normalized * Random.Range(speedMin, speedMax),
+                    startSize = Random.Range(0.2f, 0.45f), startLifetime = Random.Range(0.3f, 0.6f), startColor = colour, rotation = Random.Range(0f, 360f),
+                }, 1);
         }
 
         private static void SetEmitting(ParticleSystem ps, bool on)

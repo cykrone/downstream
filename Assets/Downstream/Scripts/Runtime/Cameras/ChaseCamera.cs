@@ -32,6 +32,10 @@ namespace Downstream.Cameras
         private Camera _camera;
         private Vector3 _lookPoint;
         private bool _hasLookPoint;
+        private float _shake;
+
+        /// <summary>A hit, a bump or a blast nearby jolts the camera for a moment; strength 1 is a full spin-out hit.</summary>
+        public void Kick(float strength) => _shake = Mathf.Max(_shake, Mathf.Clamp01(strength));
 
         public BoatView Target
         {
@@ -83,6 +87,15 @@ namespace Downstream.Cameras
             if (!_hasLookPoint) { _lookPoint = lookTarget; _hasLookPoint = true; }
             _lookPoint = Vector3.Lerp(_lookPoint, lookTarget, 1f - Mathf.Exp(-_lookSharpness * Time.deltaTime));
             transform.rotation = Quaternion.LookRotation(_lookPoint - transform.position, Vector3.up);
+            if (_shake > 0.001f)
+            {
+                // A short decaying jolt: a little position noise and a roll, gone in a third of a second.
+                float t = Time.time * 47f;
+                var jolt = new Vector3(Mathf.Sin(t) * 0.9f, Mathf.Sin(t * 1.3f + 1f) * 0.6f, 0f) * (_shake * 0.35f);
+                transform.position += transform.rotation * jolt;
+                transform.rotation *= Quaternion.Euler(0f, 0f, Mathf.Sin(t * 0.7f) * 2.5f * _shake);
+                _shake *= Mathf.Exp(-9f * Time.deltaTime);
+            }
 
             float speedK = Mathf.Clamp01(s.Velocity.ToUnity().magnitude / _fullFovSpeed);
             float fov = s.BoostTime > 0f ? _boostFov : _baseFov + _speedFovGain * speedK;

@@ -10,7 +10,7 @@ namespace Downstream.Water
     /// </summary>
     public static class WaterTextures
     {
-        private static Texture2D _ripple, _foam, _pebbles, _soft, _sprite, _wake, _swirl;
+        private static Texture2D _ripple, _foam, _pebbles, _soft, _sprite, _wake, _swirl, _ring, _star, _smoke;
 
         public static Texture2D Ripple => _ripple != null ? _ripple : (_ripple = RippleNormals(256));
         public static Texture2D Foam => _foam != null ? _foam : (_foam = FoamStrokes(256));
@@ -19,6 +19,9 @@ namespace Downstream.Water
         public static Texture2D SoftSprite => _sprite != null ? _sprite : (_sprite = SoftSpriteTexture(96));
         public static Texture2D WakeBand => _wake != null ? _wake : (_wake = WakeBandTexture(128));
         public static Texture2D Swirl => _swirl != null ? _swirl : (_swirl = SwirlTexture(128));
+        public static Texture2D RingSprite => _ring != null ? _ring : (_ring = RingSpriteTexture(128));
+        public static Texture2D StarSprite => _star != null ? _star : (_star = StarSpriteTexture(64));
+        public static Texture2D SmokeSprite => _smoke != null ? _smoke : (_smoke = SmokeSpriteTexture(96));
 
         /// <summary>Tangent-space ripple normals (xy in RG), small capillary waves over longer swells.</summary>
         public static Texture2D RippleNormals(int size)
@@ -188,6 +191,76 @@ namespace Downstream.Water
                 a = Mathf.Pow(a, 1.6f);
                 byte c = (byte)(Mathf.Clamp01(0.86f + 0.14f * a) * 255f);
                 px[y * size + x] = new Color32(c, (byte)Mathf.Min(255, c + 4), 255, (byte)(a * 255f));
+            }
+            tex.SetPixels32(px);
+            tex.Apply(true, true);
+            return tex;
+        }
+
+        /// <summary>A soft ring with a bright rim: the shock ring on the water under a splash or a blast.</summary>
+        public static Texture2D RingSpriteTexture(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, false) { name = "RingSprite", wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var px = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float u = (x + 0.5f) / size * 2f - 1f, v = (y + 0.5f) / size * 2f - 1f;
+                float r = Mathf.Sqrt(u * u + v * v);
+                float ang = Mathf.Atan2(v, u);
+                float edge = 0.82f + 0.03f * Mathf.Sin(ang * 5f + 0.7f) + 0.02f * Mathf.Sin(ang * 9f);
+                float band = 1f - Mathf.Clamp01(Mathf.Abs(r - edge) / 0.16f);
+                float a = band * band * (3f - 2f * band);
+                // A faint fill inside the rim so a fresh ring reads as a disc of disturbed water.
+                a = Mathf.Max(a, 0.18f * Mathf.Clamp01(1f - r / edge));
+                px[y * size + x] = new Color32(255, 255, 255, (byte)(a * 255f));
+            }
+            tex.SetPixels32(px);
+            tex.Apply(true, true);
+            return tex;
+        }
+
+        /// <summary>A four-point sparkle with a soft core: hit stars, pickup glints, boost glints.</summary>
+        public static Texture2D StarSpriteTexture(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, false) { name = "StarSprite", wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var px = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float u = (x + 0.5f) / size * 2f - 1f, v = (y + 0.5f) / size * 2f - 1f;
+                float r = Mathf.Sqrt(u * u + v * v);
+                float core = Mathf.Clamp01(1f - r / 0.35f);
+                core = core * core;
+                // Arms along the axes: thin, fading toward the points.
+                float armX = Mathf.Clamp01(1f - Mathf.Abs(v) / (0.08f + 0.1f * (1f - Mathf.Abs(u)))) * Mathf.Clamp01(1f - Mathf.Abs(u));
+                float armY = Mathf.Clamp01(1f - Mathf.Abs(u) / (0.08f + 0.1f * (1f - Mathf.Abs(v)))) * Mathf.Clamp01(1f - Mathf.Abs(v));
+                float a = Mathf.Clamp01(core + Mathf.Pow(Mathf.Max(armX, armY), 1.5f) * 0.9f);
+                byte c = (byte)(Mathf.Clamp01(0.75f + 0.25f * core) * 255f);
+                px[y * size + x] = new Color32(255, c, (byte)Mathf.Min(255, c + 10), (byte)(a * 255f));
+            }
+            tex.SetPixels32(px);
+            tex.Apply(true, true);
+            return tex;
+        }
+
+        /// <summary>A lumpy, soft puff: smoke from a mine, dust off a bank.</summary>
+        public static Texture2D SmokeSpriteTexture(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, false) { name = "SmokeSprite", wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var px = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float u = (x + 0.5f) / size * 2f - 1f, v = (y + 0.5f) / size * 2f - 1f;
+                float r = Mathf.Sqrt(u * u + v * v);
+                float ang = Mathf.Atan2(v, u);
+                float edge = 0.86f + 0.09f * Mathf.Sin(ang * 3f + 0.9f) + 0.06f * Mathf.Sin(ang * 6f + 2.1f) + 0.04f * Mathf.Sin(ang * 11f);
+                float a = Mathf.Clamp01(1f - r / edge);
+                a = a * a * (3f - 2f * a);
+                float lumps = 0.8f + 0.2f * Mathf.PerlinNoise(u * 2.3f + 5f, v * 2.3f + 9f);
+                byte c = (byte)(Mathf.Clamp01(0.55f + 0.45f * a * lumps) * 255f);
+                px[y * size + x] = new Color32(c, c, c, (byte)(a * lumps * 255f));
             }
             tex.SetPixels32(px);
             tex.Apply(true, true);
