@@ -174,9 +174,15 @@ silhouette rules hold whichever pack is used; without them the block props below
 The builder also measures the HDRI (brightest patch = sun, the band above the horizon = fog colour),
 turns the panorama so the sun sits where the design wants the key light, and sets the directional
 light's elevation and the fog to match. `Shaders/GreyboxSkyHdri.shader` draws the panorama at its
-full 4096 width with a brightness clamp for the sun, a thin haze line where the fogged land meets the
-sky, and only the fog colour below the horizon; it samples with wrapped UV gradients, because the
-lat-long seam otherwise drops to the smallest mip along one pixel column once mipmaps are on.
+full 4096 width with a brightness clamp for the sun, unbroken all the way down (no haze band, nothing
+painted below the horizon); it samples with wrapped UV gradients, because the lat-long seam otherwise
+drops to the smallest mip along one pixel column once mipmaps are on. Fog is sky-matched
+(`Shaders/DownstreamSkyFog.hlsl`): the ground, water and prop shaders fog toward the panorama sampled in
+the view direction, so land and water dissolve into exactly the sky behind them in every direction,
+above or below the horizon; one global fog colour could not, since the HDRI horizon is paler toward the
+sun and darker away from it. `GreyboxDressing` registers the panorama and its rotation, exposure and
+clamp as shader globals at runtime; the global fog colour (the sky at the horizon line, at the sky's
+exposure) remains for the URP Lit vendor props.
 
 `GreyboxDressing` dresses the valley at runtime from a fixed seed, nothing saved in the scene:
 rolling grass hills behind the bank blocks (a heightfield in river coordinates, so it follows the
