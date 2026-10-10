@@ -111,6 +111,7 @@ namespace Downstream.World
             }
             BuildStoryClusters(story);
             Cairns(landmarks);
+            FinishGate(landmarks);
             Bridge(landmarks, 560f);
             Dock(landmarks, 330f, -1);
             Dock(landmarks, 1180f, 1);
@@ -793,7 +794,7 @@ namespace Downstream.World
             Prop(parent, "Crate", _crate, _plank, centre + yaw * new Vector3(-2.6f, 0.45f, 1.5f), yaw, Vector3.one);
         }
 
-        private void Bunting(Transform parent, Vector3 centre)
+        private void Bunting(Transform parent, Vector3 centre, Material flagA = null, Material flagB = null)
         {
             var a = centre + new Vector3(0f, 0f, -5f);
             var b = centre + new Vector3(0f, 0f, 5f);
@@ -805,7 +806,8 @@ namespace Downstream.World
                 float t = i / (float)flags;
                 float sag = 0.5f * Mathf.Sin(t * Mathf.PI);
                 var pos = Vector3.Lerp(a, b, t) + Vector3.up * (2.7f - sag);
-                Prop(parent, "Flag", _flag, Pick(_flowers), pos, Quaternion.Euler(0f, 90f, 0f), Vector3.one, false);
+                var mat = flagA != null ? (i % 2 == 0 ? flagA : flagB ?? flagA) : Pick(_flowers);
+                Prop(parent, "Flag", _flag, mat, pos, Quaternion.Euler(0f, 90f, 0f), Vector3.one, false);
             }
         }
 
@@ -894,6 +896,104 @@ namespace Downstream.World
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// The finish: two stone towers on the banks at the mouth with a chequered banner strung between them
+        /// over the water, a chequered band on the surface under it so the line is read from the water as
+        /// well as from afar, chequered bunting along both banks on the run-in, and lanterns on the towers.
+        /// The sim's line is the track's last centreline sample; the band is drawn across that distance.
+        /// </summary>
+        private void FinishGate(Transform parent)
+        {
+            _category = "props";
+            float z = _g.Length;
+            var tangent = Tangent(z);
+            var right = new Vector3(tangent.z, 0f, -tangent.x);
+            float surface = Surface(z);
+            var centre = new Vector3(ProceduralRiver.CentreX(_g, z), surface, z);
+            var yaw = Quaternion.LookRotation(right, Vector3.up);
+            float towerLateral = HalfWidth(z) + 2.6f;
+            const float bannerHeight = 7f;
+
+            var black = Tone(_post, new Color(0.16f, 0.15f, 0.17f));
+            var white = Tone(_post, new Color(0.93f, 0.91f, 0.86f));
+
+            var towerTops = new Vector3[2];
+            for (int k = 0; k < 2; k++)
+            {
+                int side = k == 0 ? -1 : 1;
+                var foot = Seat(new Vector3(centre.x, GroundY(side, towerLateral, z), centre.z) + right * (side * towerLateral), 0f);
+                float h = surface + bannerHeight + 1.2f - (foot.y - 1f);
+                Prop(parent, "FinishTower", _box, _rock, new Vector3(foot.x, foot.y - 1f + h * 0.5f, foot.z), yaw, new Vector3(2.6f, h, 2.6f));
+                Prop(parent, "FinishCap", _box, white, new Vector3(foot.x, foot.y - 1f + h + 0.2f, foot.z), yaw, new Vector3(3f, 0.4f, 3f));
+                Prop(parent, "Lantern", _lanternMesh, _lantern, new Vector3(foot.x, foot.y - 1f + h + 0.75f, foot.z), Quaternion.identity, Vector3.one * 1.4f, false);
+                towerTops[k] = new Vector3(foot.x, surface + bannerHeight, foot.z);
+            }
+            // The banner: a chequered board between the towers, sagging a touch in the middle like cloth.
+            const int panels = 9;
+            for (int i = 0; i < panels; i++)
+            {
+                float t0 = i / (float)panels, t1 = (i + 1) / (float)panels, tm = (t0 + t1) * 0.5f;
+                float sag = 0.35f * Mathf.Sin(tm * Mathf.PI);
+                var a = Vector3.Lerp(towerTops[0], towerTops[1], t0);
+                var b = Vector3.Lerp(towerTops[0], towerTops[1], t1);
+                var mid = (a + b) * 0.5f - Vector3.up * sag;
+                var dir = (b - a).normalized;
+                Prop(parent, "FinishBanner", _box, i % 2 == 0 ? black : white, mid, Quaternion.LookRotation(dir, Vector3.up), new Vector3(0.12f, 1.5f, (b - a).magnitude + 0.02f));
+            }
+            // A wire of small chequered flags under the banner.
+            const int flags = 16;
+            for (int i = 0; i <= flags; i++)
+            {
+                float t = i / (float)flags;
+                var pos = Vector3.Lerp(towerTops[0], towerTops[1], t) - Vector3.up * (1.2f + 0.3f * Mathf.Sin(t * Mathf.PI));
+                Prop(parent, "FinishFlag", _flag, i % 2 == 0 ? black : white, pos, yaw * Quaternion.Euler(0f, 90f, 0f), Vector3.one * 1.4f, false);
+            }
+            // The line on the water: a chequered band across the channel at the finish distance.
+            var band = new Mesh { name = "FinishBand" };
+            float half = HalfWidth(z) + 0.5f;
+            const float along = 2.4f;
+            band.SetVertices(new[]
+            {
+                centre + right * -half - tangent * (along * 0.5f), centre + right * half - tangent * (along * 0.5f),
+                centre + right * -half + tangent * (along * 0.5f), centre + right * half + tangent * (along * 0.5f),
+            });
+            float tiles = Mathf.Round(half * 2f / along);
+            band.SetUVs(0, new[] { new Vector2(0f, 0f), new Vector2(tiles, 0f), new Vector2(0f, 1f), new Vector2(tiles, 1f) });
+            band.SetColors(new[] { Color.white, Color.white, Color.white, Color.white });
+            band.SetTriangles(new[] { 0, 2, 1, 1, 2, 3 }, 0);
+            band.RecalculateNormals();
+            band.RecalculateBounds();
+            Keep(band);
+            var bandGo = new GameObject("FinishBand", typeof(MeshFilter), typeof(MeshRenderer));
+            bandGo.transform.SetParent(parent, false);
+            bandGo.transform.position = Vector3.up * 0.16f; // above the wave amplitude so it never dips under the surface
+            bandGo.GetComponent<MeshFilter>().sharedMesh = band;
+            var bandShader = Shader.Find("Downstream/Greybox Spray");
+            var bandMat = new Material(bandShader != null ? bandShader : _plank.shader) { name = "FinishBandMat" };
+            bandMat.SetTexture("_BaseMap", WaterTextures.Chequer);
+            if (bandMat.HasProperty("_SkyTint")) bandMat.SetColor("_SkyTint", Color.white);
+            _materials.Add(bandMat);
+            var br = bandGo.GetComponent<MeshRenderer>();
+            br.sharedMaterial = bandMat;
+            br.shadowCastingMode = ShadowCastingMode.Off;
+            br.receiveShadows = false;
+            // Bunting along both banks on the run-in, so the line is announced before it is seen.
+            for (int side = -1; side <= 1; side += 2)
+                for (float back = 14f; back <= 70f; back += 28f)
+                    Bunting(parent, Meadow(side, 4.5f, z - back), black, white);
+        }
+
+        /// <summary>A copy of a prop material in one flat colour (tops a touch lighter, undersides darker).</summary>
+        private Material Tone(Material source, Color colour)
+        {
+            var m = new Material(source) { name = source.name + " " + ColorUtility.ToHtmlStringRGB(colour) };
+            if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", colour);
+            if (m.HasProperty("_TopColor")) m.SetColor("_TopColor", Color.Lerp(colour, Color.white, 0.18f));
+            if (m.HasProperty("_ShadeColor")) m.SetColor("_ShadeColor", colour * 0.6f);
+            _materials.Add(m);
+            return m;
         }
 
         /// <summary>A plank dock reaching from the meadow over the water, with crates and a barrel.</summary>

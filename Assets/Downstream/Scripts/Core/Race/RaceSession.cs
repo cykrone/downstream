@@ -175,10 +175,11 @@ namespace Downstream.Core.Race
                 _inputs[i] = Phase == RacePhase.Countdown || Status[i].IsRespawning ? default : inputs[i];
                 if (Status[i].Finished)
                 {
-                    // Past the line the race is over for this boat: it eases off and stops in the run-out pool,
-                    // whoever (player or AI) is still pushing the stick.
+                    // Past the line the race is over for this boat: it coasts through the gate and eases to a
+                    // stop in the run-out pool, whoever (player or AI) is still pushing the stick. A hard brake
+                    // at the line slammed boats to a halt on the chequer; coasting carries them clear of it.
                     float speed = Sim.State.Boats[i].Velocity.Flat.Magnitude;
-                    _inputs[i] = new BoatInput { Throttle = speed > 2f ? -0.45f : 0f, Steer = _inputs[i].Steer };
+                    _inputs[i] = new BoatInput { Throttle = speed > 12f ? 0f : speed > 1.5f ? -0.3f : 0f, Steer = _inputs[i].Steer };
                 }
             }
 

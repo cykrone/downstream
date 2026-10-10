@@ -10,7 +10,7 @@ namespace Downstream.Water
     /// </summary>
     public static class WaterTextures
     {
-        private static Texture2D _ripple, _foam, _pebbles, _soft, _sprite, _wake, _swirl, _ring, _star, _smoke;
+        private static Texture2D _ripple, _foam, _pebbles, _soft, _sprite, _wake, _swirl, _ring, _star, _smoke, _chequer;
 
         public static Texture2D Ripple => _ripple != null ? _ripple : (_ripple = RippleNormals(256));
         public static Texture2D Foam => _foam != null ? _foam : (_foam = FoamStrokes(256));
@@ -22,6 +22,7 @@ namespace Downstream.Water
         public static Texture2D RingSprite => _ring != null ? _ring : (_ring = RingSpriteTexture(128));
         public static Texture2D StarSprite => _star != null ? _star : (_star = StarSpriteTexture(64));
         public static Texture2D SmokeSprite => _smoke != null ? _smoke : (_smoke = SmokeSpriteTexture(96));
+        public static Texture2D Chequer => _chequer != null ? _chequer : (_chequer = ChequerTexture(64, 2));
 
         /// <summary>Tangent-space ripple normals (xy in RG), small capillary waves over longer swells.</summary>
         public static Texture2D RippleNormals(int size)
@@ -191,6 +192,23 @@ namespace Downstream.Water
                 a = Mathf.Pow(a, 1.6f);
                 byte c = (byte)(Mathf.Clamp01(0.86f + 0.14f * a) * 255f);
                 px[y * size + x] = new Color32(c, (byte)Mathf.Min(255, c + 4), 255, (byte)(a * 255f));
+            }
+            tex.SetPixels32(px);
+            tex.Apply(true, true);
+            return tex;
+        }
+
+        /// <summary>A black and white chequer, <paramref name="cells"/> squares across: the finish line's banner and water band.</summary>
+        public static Texture2D ChequerTexture(int size, int cells)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, true, false) { name = "Chequer", wrapMode = TextureWrapMode.Repeat, filterMode = FilterMode.Trilinear, anisoLevel = 8 };
+            var px = new Color32[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                bool dark = ((x * cells / size) + (y * cells / size)) % 2 == 0;
+                // Off-black and warm off-white, so the chequer sits in the palette instead of punching a hole in it.
+                px[y * size + x] = dark ? new Color32(28, 26, 30, 255) : new Color32(242, 238, 228, 255);
             }
             tex.SetPixels32(px);
             tex.Apply(true, true);

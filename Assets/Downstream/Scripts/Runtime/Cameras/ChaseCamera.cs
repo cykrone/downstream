@@ -33,6 +33,10 @@ namespace Downstream.Cameras
         private Vector3 _lookPoint;
         private bool _hasLookPoint;
         private float _shake;
+        private float _orbit;
+
+        /// <summary>Once the target has finished, the camera swings out and circles the boat as it coasts to a stop.</summary>
+        public bool Celebrate { get; set; }
 
         /// <summary>A hit, a bump or a blast nearby jolts the camera for a moment; strength 1 is a full spin-out hit.</summary>
         public void Kick(float strength) => _shake = Mathf.Max(_shake, Mathf.Clamp01(strength));
@@ -73,6 +77,15 @@ namespace Downstream.Cameras
             var lookTarget = new Vector3(ahead.x, aheadSurface + 1.2f, ahead.z);
 
             var behind = boatPos - forward * _distance;
+            if (Celebrate)
+            {
+                // A slow orbit at a lower, closer station, looking at the pilot rather than down the river.
+                _orbit += 22f * Time.deltaTime;
+                var ring = Quaternion.Euler(0f, _orbit, 0f) * (-forward * 7.5f);
+                behind = boatPos + ring;
+                lookTarget = boatPos + Vector3.up * 0.9f;
+            }
+            else _orbit = 0f;
             float behindSurface = Mathf.Max(SurfaceAt(behind, boatSurface), boatSurface);
 
             // Lift over drops (falls, ledges) so the pool below is visible before committing. The river's
@@ -80,7 +93,7 @@ namespace Downstream.Cameras
             float expectedDrop = Mathf.Max(0f, (behindSurface - boatSurface) / _distance * _lookAhead);
             float drop = Mathf.Max(0f, boatSurface - aheadSurface - expectedDrop - (boatPos.y - boatSurface));
             float lift = Mathf.Clamp(drop * _liftPerMetreOfDrop, 0f, _maxLift);
-            var desired = new Vector3(behind.x, behindSurface + _height + lift, behind.z);
+            var desired = new Vector3(behind.x, behindSurface + (Celebrate ? 2.6f : _height + lift), behind.z);
 
             float k = 1f - Mathf.Exp(-_followSharpness * Time.deltaTime);
             transform.position = Vector3.Lerp(transform.position, desired, k);
@@ -98,7 +111,7 @@ namespace Downstream.Cameras
             }
 
             float speedK = Mathf.Clamp01(s.Velocity.ToUnity().magnitude / _fullFovSpeed);
-            float fov = s.BoostTime > 0f ? _boostFov : _baseFov + _speedFovGain * speedK;
+            float fov = Celebrate ? 58f : s.BoostTime > 0f ? _boostFov : _baseFov + _speedFovGain * speedK;
             _camera.fieldOfView = Mathf.Lerp(_camera.fieldOfView, fov, 1f - Mathf.Exp(-_fovSharpness * Time.deltaTime));
         }
     }

@@ -232,6 +232,9 @@ namespace Downstream.Race
                 }
             }
 
+            foreach (var cam in _cameras)
+                if (cam != null && cam.Target != null) cam.Celebrate = _race.Status[cam.Target.BoatIndex].Finished;
+
             float alpha = _clock.Alpha;
             // The water is drawn at the same interpolated time as the boats.
             float drawTime = (sim.Tick - 1 + alpha) * BoatSimulator.TickDelta;

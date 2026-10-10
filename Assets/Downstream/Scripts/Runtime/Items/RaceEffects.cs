@@ -146,6 +146,7 @@ namespace Downstream.Items
                 if (view == null || !view.gameObject.activeSelf) continue;
                 var ev = _director.FrameItemEvents(i);
                 if (ev != ItemEvents.None) BoatItemEvents(i, ev, view.transform);
+                if ((_director.FrameRaceEvents(i) & Core.Race.RaceEvents.Finished) != 0) FinishBurst(view.transform, i);
                 var boat = race.Sim.State.Boats[i];
                 if (boat.SpinTime > 0f) SpinStars(view.transform, i);
                 var bi = items.Boats[i];
@@ -205,6 +206,27 @@ namespace Downstream.Items
             if ((ev & ItemEvents.Used) != 0)
                 Burst(_sparks, p + Vector3.up * 0.9f, 8, 1.5f, 3.5f, Vector3.up, 1.5f, 0.15f, 0.3f, 0.2f, 0.35f, White);
         }
+
+        /// <summary>Crossing the line: a fountain of confetti in the livery palette, a ring, and a nudge to the camera.</summary>
+        private void FinishBurst(Transform boat, int i)
+        {
+            var p = boat.position;
+            Ring(p, 5f, 0.8f, White);
+            for (int n = 0; n < 48; n++)
+            {
+                var c = Confetti[n % Confetti.Length];
+                var v = (Vector3.up * 2f + Random.insideUnitSphere * 1.4f).normalized * Random.Range(5f, 11f);
+                Emit(_debris, p + Vector3.up * 1f + Random.insideUnitSphere * 0.6f, v, Random.Range(1.2f, 2f), Random.Range(0.18f, 0.32f), c);
+            }
+            Burst(_sparks, p + Vector3.up * 1.2f, 20, 3f, 7f, Vector3.up, 1.3f, 0.3f, 0.6f, 0.4f, 0.8f, Sunflower);
+            Kick(i, 0.25f);
+        }
+
+        private static readonly Color[] Confetti =
+        {
+            new Color(0.95f, 0.35f, 0.3f, 1f), new Color(0.3f, 0.55f, 0.95f, 1f), new Color(1f, 0.82f, 0.25f, 1f),
+            new Color(0.3f, 0.8f, 0.55f, 1f), new Color(0.7f, 0.45f, 0.9f, 1f), new Color(0.98f, 0.98f, 0.95f, 1f),
+        };
 
         /// <summary>Spin-out: cartoon stars circling the pilot's head for as long as the spin lasts.</summary>
         private void SpinStars(Transform boat, int i)
