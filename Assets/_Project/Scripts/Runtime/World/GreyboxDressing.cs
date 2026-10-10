@@ -181,7 +181,19 @@ namespace Downstream.World
         }
 
         /// <summary>Ground height for a prop at a lateral distance from the centreline.</summary>
-        private float GroundY(int side, float lateral, float z) => Surface(z) + LandRise(lateral, z);
+        private float GroundY(int side, float lateral, float z) => SurfaceAtPoint(World(side, lateral, z, 0f).x, z, lateral) + LandRise(lateral, z);
+
+        /// <summary>
+        /// Water level under a terrain point. Near the channel it follows the water (level along the line
+        /// square to the flow); out on the hills it eases back to level along world x, because the
+        /// perpendiculars of a bend cross each other beyond its radius and a far point has no one distance.
+        /// </summary>
+        private float SurfaceAtPoint(float x, float z, float lateral)
+        {
+            float w = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((lateral - 30f) / 30f));
+            float d = Mathf.Clamp(Mathf.Lerp(z, ProceduralRiver.DistanceAt(_g, x, z), w), 0f, _g.Length);
+            return ProceduralRiver.SurfaceAt(_g, d);
+        }
 
         /// <summary>Meadow placement: lateral is measured from the channel edge so it follows the breathing width.</summary>
         private Vector3 Meadow(int side, float fromEdge, float z, float lift = 0f)
@@ -427,7 +439,7 @@ namespace Downstream.World
         {
             // Columns are dense across the terrace and sparse out on the hills; rows are 3 m along the river.
             var offsets = new List<float>();
-            for (float o = -0.5f; o < TerraceRun + 2f; o += 0.35f) offsets.Add(o);
+            for (float o = 0.6f; o < TerraceRun + 2f; o += 0.35f) offsets.Add(o); // starts past the bed mesh's meadow: no overlap to fight over
             for (float o = TerraceRun + 2f; o < TerraceRun + 6f; o += 1f) offsets.Add(o);
             for (float o = TerraceRun + 6f; o < 40f; o += 2.5f) offsets.Add(o);
             for (float o = 40f; o <= _hillDepth; o += 6f) offsets.Add(o);
@@ -443,9 +455,10 @@ namespace Downstream.World
             {
                 float z = z0 + iz * spacing;
                 float lateral = TerrainIn(z) + offsets[il];
-                float y = Surface(z) + LandRise(lateral, z);
                 int i = iz * nl + il;
-                verts[i] = World(side, lateral, z, y);
+                var flat = World(side, lateral, z, 0f);
+                float y = SurfaceAtPoint(flat.x, z, lateral) + LandRise(lateral, z);
+                verts[i] = new Vector3(flat.x, y, flat.z);
                 float tint = Fbm(lateral * 0.05f + 11f, z * 0.05f, 2);
                 cols[i] = new Color(1f, tint, 0f, 1f);
                 uvs[i] = new Vector2(verts[i].x, verts[i].z);

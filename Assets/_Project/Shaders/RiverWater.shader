@@ -186,7 +186,11 @@ Shader "Downstream/River Water"
                     float shoreEye = LinearEyeDepth(SampleSceneDepth(shoreUv), _ZBufferParams);
                     float viewDiff = shoreEye - IN.screenPos.w;
                     clip(viewDiff + 0.004);
-                    depth = min(depth, max(viewDiff, 0.0) * 0.8 + 0.02);
+                    // Vertical gap to the ground, not the distance along the view ray: at a grazing angle a
+                    // centimetre of water sits metres along the ray, and that sliver used to draw as a bright line.
+                    float3 toCam = normalize(GetCameraPositionWS() - IN.positionWS);
+                    float vertical = max(viewDiff, 0.0) * saturate(abs(toCam.y) + 0.05);
+                    depth = min(depth, vertical * 0.8 + 0.01);
                 }
 
                 float2 flow = st.flow * flowScale;
@@ -253,15 +257,24 @@ Shader "Downstream/River Water"
                 cover += 0.75 * smoothstep(_FoamFlowStart, _FoamFlowFull, speed);
                 cover += 0.8 * smoothstep(_FoamSlope, _FoamSlope * 2.5, slopeMag) * (0.55 + 0.45 * strokes);
                 cover += lane ? 0.05 : 0.0; // lanes read as glossy streaks, not white water
-                cover += eddySeam * 0.85 + (eddy ? 0.18 : 0.0);
+                cover += eddySeam * 0.4 * (0.6 + 0.4 * strokes) + (eddy ? 0.18 : 0.0);
                 cover += crest ? 0.6 : 0.0;
                 cover += lip ? 0.9 : 0.0;
                 cover += 0.3 * smoothstep(0.6, 0.1, depth);
                 cover = saturate(cover);
-                float foam = smoothstep(1.0 - cover, 1.0 - cover + 0.3, strokes) * lerp(0.6, 1.0, detail) * saturate(cover * 2.5);
+                float foam = smoothstep(1.0 - cover, 1.0 - cover + 0.3, strokes) * lerp(0.6, 1.0, detail) * saturate(cover * 2.5) * saturate(depth / 0.12);
                 // The boil: full inside the hole, half where the blended texels disagree, churning with its own noise.
                 float holeMix = (st.featuresAll & RIVER_FEATURE_HOLE) != 0 ? 1.0 : ((st.featuresAny & RIVER_FEATURE_HOLE) != 0 ? 0.5 : 0.0);
                 foam = max(foam, holeMix * smoothstep(0.3, 0.8, boil));
+                // The falls face: a curtain of vertical streaks pouring down, not a flat white slab.
+                float steepFace = smoothstep(1.0, 3.0, slopeMag);
+                if (steepFace > 0.0)
+                {
+                    float2 cuv = float2(dot(xz, perp0) * 0.55, IN.positionWS.y * 0.11 + t * 2.8);
+                    float curtain = SAMPLE_TEXTURE2D(_FoamTex, sampler_FoamTex, cuv).r * 0.6
+                                  + SAMPLE_TEXTURE2D(_FoamTex, sampler_FoamTex, cuv * float2(2.1, 1.3) + float2(0.4, t * 1.7)).r * 0.4;
+                    foam = lerp(foam, saturate(0.3 + 0.9 * curtain), steepFace);
+                }
 
                 // Underwater colour: the refracted opaque scene absorbed by depth, tinted by the biome.
                 float2 screenUv = IN.screenPos.xy / IN.screenPos.w;
@@ -281,15 +294,17 @@ Shader "Downstream/River Water"
                 float speedK = smoothstep(0.0, 1.0, saturate((speed - _SlowSpeed) / max(_FastSpeed - _SlowSpeed, 0.01)));
                 float laneSum = st.laneWeight, speedSum = speed;
                 [unroll]
-                for (int q = 0; q < 4; q++)
+                for (int q = 0; q < 8; q++)
                 {
-                    float2 o = q == 0 ? float2(1.2, 1.2) : q == 1 ? float2(-1.2, 1.2) : q == 2 ? float2(1.2, -1.2) : float2(-1.2, -1.2);
+                    // A 3 x 3 cross at 1.7 m: the lane's texel-row edge becomes a gradient over a boat length.
+                    float2 o = 1.7 * (q == 0 ? float2(1, 0) : q == 1 ? float2(-1, 0) : q == 2 ? float2(0, 1) : q == 3 ? float2(0, -1)
+                             : q == 4 ? float2(1, 1) : q == 5 ? float2(-1, 1) : q == 6 ? float2(1, -1) : float2(-1, -1));
                     RiverStaticSample sq = SampleRiverStatic(xz + o);
                     laneSum += sq.hasData ? sq.laneWeight : st.laneWeight;
                     speedSum += sq.hasData ? length(sq.flow * flowScale) : speed;
                 }
-                float laneW = smoothstep(0.2, 0.8, laneSum * 0.2);
-                speedK = smoothstep(0.0, 1.0, saturate((speedSum * 0.2 - _SlowSpeed) / max(_FastSpeed - _SlowSpeed, 0.01)));
+                float laneW = smoothstep(0.2, 0.8, laneSum / 9.0);
+                speedK = smoothstep(0.0, 1.0, saturate((speedSum / 9.0 - _SlowSpeed) / max(_FastSpeed - _SlowSpeed, 0.01)));
                 float eddyW = smoothstep(0.15, 0.85, st.eddyWeight);
                 body *= lerp(_SlowTint.rgb, _FastTint.rgb, saturate(speedK * 0.6 + laneW * 0.5));
                 body *= lerp(1.0, _EddyTint.rgb, eddyW);
@@ -321,7 +336,7 @@ Shader "Downstream/River Water"
                 float3 colour = lerp(lit, sky, fresnel) + spec;
                 // Current lane: the glossy streak itself, a touch brighter where the stretched ripples catch the light.
                 colour += lane ? 0.04 * (0.5 + 0.5 * nf.y) * light.color * shadow : 0.0;
-                colour += laneBand * _LaneMarkColor.rgb * 0.28 * (ambient + light.color * shadow * 0.6);
+                colour += laneBand * _LaneMarkColor.rgb * 0.12 * (ambient + light.color * shadow * 0.6);
 
                 float3 foamLit = _FoamColor.rgb * (ambient + light.color * shadow * (0.5 + 0.5 * saturate(dot(N, L))));
                 colour = lerp(colour, foamLit, foam);

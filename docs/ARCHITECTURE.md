@@ -110,7 +110,12 @@ judges whitewater on slope in excess of that grade (`_RiverBaseSlope`), so only 
 the falls break white. Obstacles read as a course: slalom rock gardens, bridge piers, an island choke in the run-in to the falls, a wide step and a rapid below it, a boulder gate near the finish, each rock with its eddy. The course is laid out like a race track: two meander components (90 m over
 500 m and 15 m over 230 m) swing the heading through about 55 degrees in each sweeper. Because the
 centreline is a sheared function x(z), the field's half-span and the dressing's lateral offsets are
-scaled by the slope so the channel keeps its width across the sharp bends.
+scaled by the slope so the channel keeps its width across the sharp bends, and river distance is
+measured along the flow (`ProceduralRiver.DistanceAt`: z + slope * (x - centre), constant on the line
+square to the current), so the surface is level across the channel and the falls, ledges, wave trains
+and holes cross it perpendicular to the current instead of along a line of constant z. The water
+surface and bed grids are built in those river coordinates (rows of equal distance, columns across
+the channel, with extra rows either side of every drop), so a 6 m fall is one clean strip.
 
 Boats are lofted hulls (`BlockBoat` in `BoatMeshes.cs`): a fine bow entry, full midships, a flat
 transom, a crowned deck with a rub rail and cockpit coaming, a seated pilot in a vest and helmet,

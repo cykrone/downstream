@@ -43,9 +43,10 @@ namespace Downstream.Water
             float d = b.Distance;
             float cx = ProceduralRiver.CentreX(_greybox, d);
             // The builder measures across the channel as (x - centre) * tangentZ, so undo that here.
-            float slope = (ProceduralRiver.CentreX(_greybox, d + 0.5f) - ProceduralRiver.CentreX(_greybox, d - 0.5f));
-            float tZ = 1f / Mathf.Sqrt(1f + slope * slope);
-            return new Vector3(cx + b.Lateral / tZ, ProceduralRiver.SurfaceAt(_greybox, d), d);
+            float slope = ProceduralRiver.CentreSlope(_greybox, d);
+            float tl = Mathf.Sqrt(1f + slope * slope);
+            // Along the line square to the flow: x by tZ, z back by tX, so the rock's river distance stays d.
+            return new Vector3(cx + b.Lateral / tl, ProceduralRiver.SurfaceAt(_greybox, d), d - b.Lateral * slope / tl);
         }
 
         /// <summary>A 1.5 km test river on a 15 degree grade with a 6 m falls, floodable banks, two eddy rocks, a ledge hole and a wave train.</summary>

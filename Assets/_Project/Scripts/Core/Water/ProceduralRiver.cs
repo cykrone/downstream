@@ -121,6 +121,35 @@ namespace Downstream.Core.Water
             return x;
         }
 
+        /// <summary>
+        /// River distance of a world point. The centreline is a sheared function x(z), so the line square to
+        /// the flow through (CentreX(z), z) is z + slope * (x - CentreX(z)) = const: that value is the distance.
+        /// Surface height, falls, ledges, wave trains and holes all follow it, so on a bend they cross the
+        /// channel perpendicular to the current instead of along a line of constant z.
+        /// </summary>
+        public static float DistanceAt(in ProceduralRiverSettings s, float x, float z) => PerpendicularRow(s, x, z);
+
+        /// <summary>
+        /// The centreline row whose perpendicular passes through the world point: z0 with
+        /// z0 = z + slope(z0) * (x - centre(z0)), solved by a damped fixed-point iteration. Every point on
+        /// that perpendicular shares the river distance z0, which is what the water mesh, the bed and the
+        /// baked field all measure.
+        /// </summary>
+        public static float PerpendicularRow(in ProceduralRiverSettings s, float x, float z)
+        {
+            float z0 = z;
+            for (int k = 0; k < 8; k++)
+            {
+                float next = z + CentreSlope(s, z0) * (x - CentreX(s, z0));
+                z0 = 0.5f * (z0 + next);
+            }
+            return z0;
+        }
+
+        /// <summary>Water surface height at a world point (the distance clamped to the course).</summary>
+        public static float SurfaceAtPoint(in ProceduralRiverSettings s, float x, float z)
+            => SurfaceAt(s, SimMath.Clamp(DistanceAt(s, x, z), 0f, s.Length));
+
         /// <summary>Channel width at a point along the river: pools swell, narrows pinch.</summary>
         public static float WidthAt(in ProceduralRiverSettings s, float z)
         {
@@ -228,26 +257,28 @@ namespace Downstream.Core.Water
             for (int iz = 0; iz < nz; iz++)
             {
                 field.TexelCentre(0, iz, out _, out float z);
-                float distance = SimMath.Clamp(z, 0f, s.Length);
-                float halfWidth = WidthAt(s, z) * 0.5f;
-                // The same water through a narrower channel runs faster (continuity).
-                float widthFlow = s.Width / SimMath.Max(WidthAt(s, z), 1f);
-                float cx = CentreX(s, z);
-                float dcx = CentreSlope(s, z);
-                // Unit tangent of the centreline and the outward side of the current bend.
-                float tl = SimMath.Sqrt(1f + dcx * dcx);
-                float tX = dcx / tl, tZ = 1f / tl;
-                float curvature = CentreCurvature(s, z, out float maxCurvature);
-                float laneOffset = SimMath.Clamp(curvature / maxCurvature, -1f, 1f) * (halfWidth - s.LaneWidth * 0.5f - 1f);
-                float surface = SurfaceAt(s, distance);
 
                 for (int ix = 0; ix < nx; ix++)
                 {
                     field.TexelCentre(ix, iz, out float x, out _);
-                    float lateral = (x - cx) * tZ; // approximate signed distance across the channel
+                    // Everything is measured on the perpendicular through the texel: its foot on the centreline
+                    // gives the river distance, the width and the lane; the offset along it is the lateral.
+                    float z0 = PerpendicularRow(s, x, z);
+                    float cx = CentreX(s, z0);
+                    float dcx = CentreSlope(s, z0);
+                    float tl = SimMath.Sqrt(1f + dcx * dcx);
+                    float tX = dcx / tl, tZ = 1f / tl;
+                    float halfWidth = WidthAt(s, z0) * 0.5f;
+                    // The same water through a narrower channel runs faster (continuity).
+                    float widthFlow = s.Width / SimMath.Max(WidthAt(s, z0), 1f);
+                    float curvature = CentreCurvature(s, z0, out float maxCurvature);
+                    float laneOffset = SimMath.Clamp(curvature / maxCurvature, -1f, 1f) * (halfWidth - s.LaneWidth * 0.5f - 1f);
+                    float distance = SimMath.Clamp(z0, 0f, s.Length);
+                    float surface = SurfaceAt(s, distance);
+                    float lateral = (x - cx) * tl; // signed distance across the channel along the perpendicular
                     float abs = SimMath.Abs(lateral);
-                    bool inChannel = abs <= halfWidth && z >= -4f && z <= s.Length + RunOut;
-                    bool onBank = !inChannel && abs <= halfWidth + s.FloodableBank && z >= 0f && z <= s.Length + RunOut;
+                    bool inChannel = abs <= halfWidth && z0 >= -4f && z0 <= s.Length + RunOut;
+                    bool onBank = !inChannel && abs <= halfWidth + s.FloodableBank && z0 >= 0f && z0 <= s.Length + RunOut;
                     if (!inChannel && !onBank) continue;
 
                     var features = WaterFeature.None;
@@ -261,7 +292,7 @@ namespace Downstream.Core.Water
                         float bankFalloff = 1f - 0.5f * u * u;
                         flow = s.BaseFlow * bankFalloff * widthFlow;
                         // The run-out is a pool: the current dies away over the first 30 m past the finish.
-                        if (z > s.Length) flow *= 1f - SimMath.Clamp01((z - s.Length) / 30f);
+                        if (z0 > s.Length) flow *= 1f - SimMath.Clamp01((z0 - s.Length) / 30f);
                         if (SimMath.Abs(lateral - laneOffset) <= s.LaneWidth * 0.5f)
                         {
                             flow += s.LaneExtraFlow;

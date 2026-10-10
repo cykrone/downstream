@@ -79,7 +79,7 @@ namespace Downstream.Editor
             var rockMat = PropMaterial(TrackDir + "/GreyboxRock.mat", propShader, new Color(0.34f, 0.36f, 0.40f), new Color(0.50f, 0.52f, 0.55f), new Color(0.18f, 0.20f, 0.24f));
             var groundShader = Shader.Find("Downstream/Greybox Ground") ?? litShader;
             var bedMat = EnsureMaterial(TrackDir + "/GreyboxBed.mat", groundShader, Stones, 0.35f);
-            if (bedMat.HasProperty("_StoneColor")) { bedMat.SetColor("_StoneColor", Stones); bedMat.SetColor("_GrassColor", Sand); bedMat.SetColor("_SandColor", new Color(0.80f, 0.74f, 0.58f)); bedMat.SetColor("_EarthColor", Earth); bedMat.SetColor("_CliffColor", Cliff); }
+            if (bedMat.HasProperty("_StoneColor")) { bedMat.SetColor("_StoneColor", Stones); bedMat.SetColor("_GrassColor", Sand); bedMat.SetColor("_SandColor", new Color(0.30f, 0.26f, 0.20f)); /* wet earth at the waterline, darker than the grass */ bedMat.SetColor("_EarthColor", Earth); bedMat.SetColor("_CliffColor", Cliff); }
             GroundTextures(bedMat);
             var waterMat = EnsureMaterial(TrackDir + "/GreyboxWater.mat", waterShader, Color.white, 0.94f);
             ConfigureWaterMaterial(waterMat);
@@ -284,7 +284,7 @@ namespace Downstream.Editor
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
             RenderSettings.fogColor = FogColour;
-            if (sky != null && sky.shader != null && sky.shader.name == "Skybox/Panoramic" && sky.GetTexture("_MainTex") is Texture2D hdri && hdri.isReadable)
+            if (sky != null && sky.shader != null && (sky.shader.name == "Skybox/Panoramic" || sky.shader.name == "Downstream/Greybox Sky HDRI") && sky.GetTexture("_MainTex") is Texture2D hdri && hdri.isReadable)
             {
                 // Measure the HDRI: the sun is the brightest patch, the fog colour is the band just above the horizon.
                 AnalyseSky(hdri, out float sunAzimuth, out float sunElevation, out Color horizon);
@@ -294,6 +294,7 @@ namespace Downstream.Editor
                 sun.transform.rotation = Quaternion.Euler(sunElevation, wantAzimuth, 0f);
                 sun.intensity = 1.2f;
                 RenderSettings.fogColor = horizon;
+                if (sky.HasProperty("_HorizonHaze")) sky.SetColor("_HorizonHaze", horizon);
             }
             RenderSettings.fogStartDistance = 160f;
             RenderSettings.fogEndDistance = 1400f;
@@ -353,7 +354,7 @@ namespace Downstream.Editor
             var tonemapping = GetOrAdd<Tonemapping>(profile);
             tonemapping.mode.Override(TonemappingMode.ACES);
             var bloom = GetOrAdd<Bloom>(profile);
-            bloom.threshold.Override(1.0f);
+            bloom.threshold.Override(1.35f);
             bloom.intensity.Override(0.26f);
             bloom.scatter.Override(0.72f);
             var colour = GetOrAdd<ColorAdjustments>(profile);
@@ -391,7 +392,7 @@ namespace Downstream.Editor
             }
             // A real sky when the CC0 HDRI is on disk: lat-long panorama, with the sun and horizon measured from it.
             var hdri = AssetDatabase.LoadAssetAtPath<Texture2D>(HdriPath);
-            var panoramic = Shader.Find("Skybox/Panoramic");
+            var panoramic = Shader.Find("Downstream/Greybox Sky HDRI") ?? Shader.Find("Skybox/Panoramic");
             if (hdri != null && panoramic != null)
             {
                 mat.shader = panoramic;
@@ -400,6 +401,8 @@ namespace Downstream.Editor
                 mat.SetFloat("_ImageType", 0f); // 360 degrees
                 mat.SetFloat("_Exposure", 0.82f);
                 mat.SetFloat("_Rotation", 0f);
+                if (mat.HasProperty("_MaxBrightness")) mat.SetFloat("_MaxBrightness", 5f);
+                if (mat.HasProperty("_Tint")) mat.SetColor("_Tint", Color.white); // the panoramic shader's default tint is half grey
                 EditorUtility.SetDirty(mat);
                 return mat;
             }

@@ -60,6 +60,7 @@ namespace Downstream.Water
                 var lr = lip.GetComponent<MeshRenderer>();
                 lr.sharedMaterials = new[] { grass, earth };
                 lr.shadowCastingMode = ShadowCastingMode.On;
+                lr.enabled = false; // kept for the block-kit fallback; the continuous terrain draws the bank now
             }
 
             // Collision: one box per centreline segment, at the inner face of the bank, never drawn.
@@ -129,8 +130,31 @@ namespace Downstream.Water
             float minX = field.OriginX, minZ = field.OriginZ;
             float maxX = minX + field.TexelCountX * field.CellSize;
             float maxZ = minZ + field.TexelCountZ * field.CellSize;
-            int nx = Mathf.CeilToInt((maxX - minX) / _spacing) + 1;
-            int nz = Mathf.CeilToInt((maxZ - minZ) / _spacing) + 1;
+            // Columns run across the channel (lateral, square to the flow) rather than along world x, so the
+            // rows of the grid coincide with lines of equal river distance: a drop is one clean strip.
+            const float lateralSpan = 40f;
+            int nx = river != null ? Mathf.CeilToInt(2f * lateralSpan / _spacing) + 1 : Mathf.CeilToInt((maxX - minX) / _spacing) + 1;
+            // Rows: the regular grid plus the texel centres either side of every drop (falls, ledges), so a
+            // 6 m fall is one clean strip between two rows instead of a zigzag across the diagonals.
+            var rowList = new List<float>();
+            for (int z = 0; z <= Mathf.CeilToInt((maxZ - minZ) / _spacing); z++) rowList.Add(minZ + z * _spacing);
+            if (river != null)
+            {
+                var g = river.Greybox;
+                void AddDrop(float d)
+                {
+                    float half = field.CellSize * 0.5f;
+                    float centre = Mathf.Floor((d - field.OriginZ) / field.CellSize) * field.CellSize + field.OriginZ + half;
+                    rowList.Add(centre - field.CellSize);
+                    rowList.Add(centre);
+                }
+                if (g.WaterfallDistance >= 0f) AddDrop(g.WaterfallDistance);
+                if (g.Ledges != null) foreach (var l in g.Ledges) AddDrop(l.Distance);
+            }
+            rowList.Sort();
+            var rowZ = new List<float>();
+            foreach (var rz in rowList) if (rowZ.Count == 0 || rz - rowZ[rowZ.Count - 1] > 0.05f) rowZ.Add(rz);
+            int nz = rowZ.Count;
 
             var surface = new Vector3[nx * nz];
             var bed = new Vector3[nx * nz];
@@ -141,7 +165,18 @@ namespace Downstream.Water
             for (int x = 0; x < nx; x++)
             {
                 int i = z * nx + x;
-                float wx = minX + x * _spacing, wz = minZ + z * _spacing;
+                float wx, wz;
+                if (river != null)
+                {
+                    float rz = rowZ[z];
+                    float u = -lateralSpan + x * _spacing;
+                    float cxr = Core.Water.ProceduralRiver.CentreX(river.Greybox, rz);
+                    float dcxr = Core.Water.ProceduralRiver.CentreSlope(river.Greybox, rz);
+                    float tl = Mathf.Sqrt(1f + dcxr * dcxr);
+                    wx = cxr + u / tl;          // along the perpendicular (tZ * u)
+                    wz = rz - u * dcxr / tl;    // (-tX * u)
+                }
+                else { wx = minX + x * _spacing; wz = rowZ[z]; }
                 var s = field.SampleStatic(wx, wz);
                 has[i] = s.HasData;
                 surface[i] = new Vector3(wx, s.HasData ? s.SurfaceHeight : 0f, wz);
@@ -219,12 +254,12 @@ namespace Downstream.Water
         {
             grass = 0f;
             var g = river.Greybox;
-            float distance = Mathf.Clamp(z, 0f, g.Length);
-            float cx = Core.Water.ProceduralRiver.CentreX(g, z);
-            float dcx = Core.Water.ProceduralRiver.CentreSlope(g, z);
-            float tZ = 1f / Mathf.Sqrt(1f + dcx * dcx);
-            float lateral = Mathf.Abs((x - cx) * tZ);
-            float halfWidth = Core.Water.ProceduralRiver.WidthAt(g, z) * 0.5f;
+            float z0 = Core.Water.ProceduralRiver.PerpendicularRow(g, x, z);
+            float cx = Core.Water.ProceduralRiver.CentreX(g, z0);
+            float dcx = Core.Water.ProceduralRiver.CentreSlope(g, z0);
+            float lateral = Mathf.Abs((x - cx) * Mathf.Sqrt(1f + dcx * dcx));
+            float distance = Mathf.Clamp(z0, 0f, g.Length);
+            float halfWidth = Core.Water.ProceduralRiver.WidthAt(g, z0) * 0.5f;
             float surface = Core.Water.ProceduralRiver.SurfaceAt(g, distance);
             if (fieldBed > surface + 0.6f) return fieldBed; // a dry rock in the channel
             // Grass takes over as the ramp breaks the surface; stones stay under the water.

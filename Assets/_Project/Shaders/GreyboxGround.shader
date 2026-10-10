@@ -143,7 +143,7 @@ Shader "Downstream/Greybox Ground"
                     float3 flat = stonesTex * _StoneColor.rgb * stoneW
                                 + Tinted(meadowTex, _GrassColor.rgb * 0.9) * meadowW
                                 + Tinted(grassTex, _GrassColor.rgb) * grassW;
-                    flat = lerp(flat, _SandColor.rgb * (0.85 + 0.3 * m), rim * rim * 0.55);
+                    flat = lerp(flat, _SandColor.rgb * (0.85 + 0.3 * m), pow(rim, 1.4) * 0.0);
                     float3 steepColour = lerp(Tinted(rockTex, _CliffColor.rgb), Tinted(earthTex, _EarthColor.rgb), g);
                     albedo = lerp(flat, steepColour, steep);
                     albedo *= 1.0 + (IN.tint - 0.5) * 0.10;
