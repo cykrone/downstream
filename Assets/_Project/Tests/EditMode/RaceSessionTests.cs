@@ -169,6 +169,26 @@ namespace Downstream.Core.Tests
                 Assert.AreNotEqual(RespawnReason.Stuck, session.Status[i].LastRespawn, $"boat {i} got stuck");
         }
 
+        [Test]
+        public void FinishedBoatsStopInTheRunOutPool()
+        {
+            var session = MakeSession(2, length: 400f);
+            var inputs = new[] { new BoatInput { Throttle = 1f }, new BoatInput { Throttle = 1f } };
+            RunUntilFinished(session, inputs, 60 * 120);
+            Assert.AreEqual(RacePhase.Finished, session.Phase);
+
+            // Sticks still hard forward for twelve more seconds: the session brings the boats to rest on the water.
+            for (int k = 0; k < 12 * 120; k++) session.Step(inputs);
+            for (int i = 0; i < 2; i++)
+            {
+                var b = session.Sim.State.Boats[i];
+                Assert.IsFalse(b.Airborne, $"boat {i} fell off the field");
+                Assert.Greater(b.WetFraction, 0f, $"boat {i} is not on the water");
+                Assert.Less(b.Velocity.Flat.Magnitude, 2.5f, $"boat {i} is still moving at {b.Velocity.Flat.Magnitude:F1} m/s");
+                Assert.Less(b.Position.Z, 400f + ProceduralRiver.RunOut, $"boat {i} ran past the run-out pool");
+            }
+        }
+
         private static float TimeTo(float distance, float respawnAt)
         {
             var session = MakeSession(1, length: 1200f, flow: 0f);

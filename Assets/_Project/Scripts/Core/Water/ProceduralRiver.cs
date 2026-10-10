@@ -107,6 +107,9 @@ namespace Downstream.Core.Water
     {
         /// <summary>Length of the ramp from the channel edge up to the floodable shelf, metres.</summary>
         public const float BankRampLength = 2.5f;
+        /// <summary>Metres of slack run-out water past the finish, so finished boats can stop instead of falling off the field.</summary>
+        public const float RunOut = 80f;
+
         /// <summary>Height of the floodable shelf above the base water level, metres.</summary>
         public const float BankShelfHeight = 0.5f;
 
@@ -218,7 +221,7 @@ namespace Downstream.Core.Water
             float originZ = -8f;
             float tileSize = cellSize * RiverField.TileTexels;
             int tilesX = (int)System.MathF.Ceiling(2f * halfSpan / tileSize);
-            int tilesZ = (int)System.MathF.Ceiling((s.Length + 16f) / tileSize);
+            int tilesZ = (int)System.MathF.Ceiling((s.Length + RunOut + 16f) / tileSize);
             var field = new RiverField(originX, originZ, tilesX, tilesZ, cellSize);
 
             int nx = field.TexelCountX, nz = field.TexelCountZ;
@@ -243,8 +246,8 @@ namespace Downstream.Core.Water
                     field.TexelCentre(ix, iz, out float x, out _);
                     float lateral = (x - cx) * tZ; // approximate signed distance across the channel
                     float abs = SimMath.Abs(lateral);
-                    bool inChannel = abs <= halfWidth && z >= -4f && z <= s.Length + 4f;
-                    bool onBank = !inChannel && abs <= halfWidth + s.FloodableBank && z >= 0f && z <= s.Length;
+                    bool inChannel = abs <= halfWidth && z >= -4f && z <= s.Length + RunOut;
+                    bool onBank = !inChannel && abs <= halfWidth + s.FloodableBank && z >= 0f && z <= s.Length + RunOut;
                     if (!inChannel && !onBank) continue;
 
                     var features = WaterFeature.None;
@@ -257,6 +260,8 @@ namespace Downstream.Core.Water
                         bed = surface - s.Depth * (1f - 0.6f * u * u);
                         float bankFalloff = 1f - 0.5f * u * u;
                         flow = s.BaseFlow * bankFalloff * widthFlow;
+                        // The run-out is a pool: the current dies away over the first 30 m past the finish.
+                        if (z > s.Length) flow *= 1f - SimMath.Clamp01((z - s.Length) / 30f);
                         if (SimMath.Abs(lateral - laneOffset) <= s.LaneWidth * 0.5f)
                         {
                             flow += s.LaneExtraFlow;

@@ -34,6 +34,9 @@ and draws as a 0.5 m sawtooth at grazing angles.
 - `BoatState` is a plain struct, so a race snapshot is an array copy. That makes 32-tick own-boat
   rollback (`OwnBoatPredictor`) and 20x headless AI races cheap.
 - `RaceSimulation` steps 8 boats at 120 Hz; race time is `tick / 120`, never accumulated.
+- Past the line a boat's race is over: `RaceSession` replaces its input with a brake and then nothing, and
+  the river field carries 80 m of slack run-out water past the finish (`ProceduralRiver.RunOut`), so
+  finished boats stop on the water instead of running off the field.
 - All maths goes through `SimMath`, so the time-trial path can later switch to Unity.Mathematics in a
   Burst job with `FloatMode.Deterministic` without touching callers.
 - PhysX only answers collision queries (`PhysicsBoatCollider`); `Physics.simulationMode` is Script.
