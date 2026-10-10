@@ -8,19 +8,18 @@
 *.overrideController text eol=lf merge=unityyamlmerge
 *.physicMaterial text eol=lf merge=unityyamlmerge
 *.meta       text eol=lf merge=unityyamlmerge
-
 # Code and data
 *.cs      text eol=lf diff=csharp
 *.asmdef  text eol=lf
 *.json    text eol=lf
 *.shader  text eol=lf
 *.hlsl    text eol=lf
+*.compute text eol=lf
 *.cginc   text eol=lf
 *.uss     text eol=lf
 *.uxml    text eol=lf
 *.md      text eol=lf
 *.yml     text eol=lf
-
 # Binary content in Git LFS
 *.png  filter=lfs diff=lfs merge=lfs -text
 *.jpg  filter=lfs diff=lfs merge=lfs -text
@@ -41,3 +40,6 @@
 *.otf  filter=lfs diff=lfs merge=lfs -text
 *.bytes filter=lfs diff=lfs merge=lfs -text
 *.riverfield filter=lfs diff=lfs merge=lfs -text
+Assets/Downstream/Art/**/*.fbx filter=lfs diff=lfs merge=lfs -text
+Assets/Downstream/Art/**/*.png filter=lfs diff=lfs merge=lfs -text
+Assets/Downstream/Art/**/*.hdr filter=lfs diff=lfs merge=lfs -text

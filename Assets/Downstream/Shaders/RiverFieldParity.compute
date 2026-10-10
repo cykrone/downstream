@@ -1,0 +1,26 @@
+// Evaluates the GPU River Field sampler at a list of points so an EditMode test can compare it
+// with Downstream.Core.Water.RiverWater.Sample on the CPU.
+#pragma kernel Sample
+
+#ifndef PI
+#define PI 3.14159265358979323846
+#endif
+#include "RiverField.hlsl"
+
+StructuredBuffer<float4> _Points;        // x, z, race time, 0
+RWStructuredBuffer<float4> _OutLevel;    // surface height, depth, flowX, flowZ
+RWStructuredBuffer<float4> _OutNormal;   // normal xyz, river distance
+RWStructuredBuffer<float4> _OutFlags;    // features, isWet, hasData (static), 0
+uint _Count;
+
+[numthreads(64, 1, 1)]
+void Sample(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= _Count) return;
+    float4 p = _Points[id.x];
+    RiverWaterSample s = SampleRiverWater(p.xy, p.z);
+    RiverStaticSample st = SampleRiverStatic(p.xy);
+    _OutLevel[id.x] = float4(s.surfaceHeight, s.depth, s.flow.x, s.flow.y);
+    _OutNormal[id.x] = float4(s.normal, s.riverDistance);
+    _OutFlags[id.x] = float4(s.features, s.isWet ? 1.0 : 0.0, st.hasData ? 1.0 : 0.0, 0);
+}
