@@ -499,6 +499,7 @@ namespace Downstream.Editor
             var hips = new GameObject("Pilot").transform;
             hips.SetParent(root.transform, false);
             hips.localPosition = BlockBoat.Hips + new Vector3(0f, 0.1f, 0f);
+            hips.localScale = Vector3.one * BlockBoat.PilotScale;
             var torsoR = Child(hips, "Torso", torsoMesh, trimMat, Vector3.zero);
             var torso = torsoR.transform;
             var headR = Child(torso, "Head", headMesh, skinMat, BlockBoat.NeckFromHips);
@@ -513,8 +514,8 @@ namespace Downstream.Editor
             var sleeveL = Child(armL, "Sleeve", sleeveMesh, hullMat, Vector3.zero);
             var sleeveR = Child(armR, "Sleeve", sleeveMesh, hullMat, Vector3.zero);
             var paddle = Child(torso, "Paddle", paddleMesh, paddleMat, BlockBoat.GripFromHips).transform;
-            Child(paddle, "HandL", handMesh, darkMat, new Vector3(-0.36f, 0f, 0f));
-            Child(paddle, "HandR", handMesh, darkMat, new Vector3(0.36f, 0f, 0f));
+            Child(paddle, "HandL", handMesh, darkMat, new Vector3(-BlockBoat.PaddleGripHalf, 0f, 0f));
+            Child(paddle, "HandR", handMesh, darkMat, new Vector3(BlockBoat.PaddleGripHalf, 0f, 0f));
             var animator = root.AddComponent<BoatAnimator>();
             animator.Configure(torso, head, paddle, armL, armR);
             // The sim does all collision through one query proxy; views carry no colliders.

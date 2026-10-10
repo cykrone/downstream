@@ -104,7 +104,7 @@ namespace Downstream.Core.Boat
             return new BoatTuning
             {
                 HullLength = 4f,
-                HullBeam = 2f,
+                HullBeam = 1.4f, // a wide canoe: the pilot can reach the water outboard without a stretched arm
                 PontoonY = -0.2f,
                 Draft = hull.DraftMetres,
 

@@ -17,7 +17,7 @@ namespace Downstream.Boat
         [SerializeField] private Transform _armL;
         [SerializeField] private Transform _armR;
         [SerializeField] private float _fullStrokeSpeed = 18f;
-        [SerializeField] private float _gripHalfWidth = 0.36f;
+        [SerializeField] private float _gripHalfWidth = BlockBoat.PaddleGripHalf;
 
         private Vector3 _torsoRest, _headRest, _shoulderL, _shoulderR;
         private float _phase;
@@ -57,7 +57,7 @@ namespace Downstream.Boat
             float sweep = Mathf.Cos(a);    // +1: shaft forward, about to plant; -1: pulled back
 
             // Targets, smoothed so sim-side flips (drift start, landing) read as a body reacting, not snapping.
-            float leanTarget = -s.DriftDirection * 14f + Mathf.Clamp(s.YawRate * Mathf.Rad2Deg * 0.08f, -8f, 8f);
+            float leanTarget = -s.DriftDirection * 14f + Mathf.Clamp(s.YawRate * Mathf.Rad2Deg * 0.08f, -8f, 8f) - 6f * dip * (1f - _raise); // and into the stroke
             float pitchTarget = 4f + 9f * k + (boosting ? 5f : 0f) - (airborne ? 10f : 0f);
             float twistTarget = airborne ? 0f : 9f * dip;
             float raiseTarget = airborne ? 1f : 0f;
@@ -95,16 +95,16 @@ namespace Downstream.Boat
         public struct PaddlePose { public Vector3 Position; public Quaternion Rotation; }
 
         /// <summary>Grip centre to a blade tip.</summary>
-        public const float ShaftHalfLength = 1.38f;
+        public const float ShaftHalfLength = BlockBoat.PaddleShaft * 0.5f + 0.23f;
         /// <summary>Along the shaft from the grip centre where the blade begins.</summary>
-        public const float BladeStart = 0.92f;
+        public const float BladeStart = BlockBoat.PaddleShaft * 0.5f - 0.23f;
         public const float ShaftRadius = 0.035f;
         public const float BladeHalfWidth = 0.13f;
         /// <summary>Gap kept between any part of the paddle and the hull section.</summary>
         public const float HullClearance = 0.10f;
 
         /// <summary>
-        /// The stroke: the shaft rolls the dipped blade down (60 degrees at full dip) and slides a metre to
+        /// The stroke: the shaft rolls the dipped blade down (48 degrees at full dip) and slides half a metre to
         /// that side so it reaches the water outboard of the gunwale, the blades sweep fore and aft, and the
         /// whole paddle lifts level when the boat is in the air. Then every sample from the grip to the dipped
         /// tip is tested against the hull section at its height and station, and the paddle is pushed
@@ -115,12 +115,12 @@ namespace Downstream.Boat
         {
             float side = dip >= 0f ? 1f : -1f;
             float m = Mathf.Abs(dip);
-            float roll = Mathf.Lerp(-60f * dip, 0f, raise);
+            float roll = Mathf.Lerp(-48f * dip, 0f, raise);
             float yaw = Mathf.Lerp(-24f * sweep, 0f, raise);
             float feather = Mathf.Lerp(-12f * sweep * side, -35f, raise); // about x, so by stroke progress: the same twist on either side
             var rot = Quaternion.Euler(0f, yaw, 0f) * Quaternion.Euler(0f, 0f, roll) * Quaternion.Euler(feather, 0f, 0f);
             var pos = BlockBoat.GripFromHips + new Vector3(
-                0.98f * dip * (1f - raise),
+                0.45f * dip * (1f - raise),
                 0.10f * raise - 0.04f * m * (1f - raise),
                 -0.10f * (1f - sweep * side) * 0.5f * (1f - raise)); // the pull slides the paddle aft on either side
             var dir = rot * new Vector3(side, 0f, 0f);
@@ -132,16 +132,17 @@ namespace Downstream.Boat
             {
                 float along = ShaftHalfLength * i / samples;
                 float radius = along >= BladeStart ? BladeHalfWidth : ShaftRadius;
-                var axis = pos + dir * along + BlockBoat.Hips;
+                var axis = pos + dir * along;
                 // Eight points around the shaft (or the blade's extent) at this station: an edge lower than
                 // the axis can sit at a wider part of the section, so each is tested at its own height.
                 for (int q = 0; q < 8; q++)
                 {
                     float ang = q * Mathf.PI * 0.25f;
-                    var hull = axis + (up * Mathf.Cos(ang) + fwd * Mathf.Sin(ang)) * radius;
+                    // Pilot units to hull space: the pilot is scaled as a whole about the hips.
+                    var hull = (axis + (up * Mathf.Cos(ang) + fwd * Mathf.Sin(ang)) * radius) * BlockBoat.PilotScale + BlockBoat.Hips;
                     float section = BlockBoat.HalfWidthAt(hull.y, hull.z);
                     if (section <= 0f) continue;
-                    float deficit = section + HullClearance - Mathf.Abs(hull.x);
+                    float deficit = (section + HullClearance - Mathf.Abs(hull.x)) / BlockBoat.PilotScale;
                     if (deficit > shift) shift = deficit;
                 }
             }

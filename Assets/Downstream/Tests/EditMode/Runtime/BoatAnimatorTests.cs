@@ -31,7 +31,7 @@ namespace Downstream.Tests.EditMode.Runtime
                     for (int q = 0; q < 8; q++)
                     {
                         float ang = q * Mathf.PI / 4f;
-                        var p = pose.Position + right * along + (up * Mathf.Cos(ang) + fwd * Mathf.Sin(ang)) * r + BlockBoat.Hips;
+                        var p = (pose.Position + right * along + (up * Mathf.Cos(ang) + fwd * Mathf.Sin(ang)) * r) * BlockBoat.PilotScale + BlockBoat.Hips;
                         float section = BlockBoat.HalfWidthAt(p.y, p.z);
                         if (section <= 0f) continue;
                         float gap = Mathf.Abs(p.x) - section;
@@ -63,13 +63,29 @@ namespace Downstream.Tests.EditMode.Runtime
         }
 
         [Test]
+        public void ArmsNeverStretchBeyondANaturalReach()
+        {
+            // Shoulder to grip, in pilot units: a 0.60 m arm at the pilot's scale is 0.66 m; allow a little straightening.
+            float longest = 0f;
+            for (int step = 0; step < 360; step += 5)
+            {
+                float a = step * Mathf.Deg2Rad;
+                var pose = BoatAnimator.SolvePaddle(Mathf.Sin(a), Mathf.Cos(a), 0f);
+                var gripL = pose.Position + pose.Rotation * new Vector3(-BlockBoat.PaddleGripHalf, 0f, 0f);
+                var gripR = pose.Position + pose.Rotation * new Vector3(BlockBoat.PaddleGripHalf, 0f, 0f);
+                longest = Mathf.Max(longest, (gripL - BlockBoat.ShoulderL).magnitude, (gripR - BlockBoat.ShoulderR).magnitude);
+            }
+            Assert.That(longest, Is.LessThan(0.72f), "an arm is stretched beyond a natural reach");
+        }
+
+        [Test]
         public void DippedBladeReachesTheWater()
         {
             // Water sits 0.1 m below the hull origin (the hull parts are raised 0.1 m above the boat root).
             var pose = BoatAnimator.SolvePaddle(1f, 0f, 0f);
-            var tip = pose.Position + pose.Rotation * Vector3.right * BoatAnimator.ShaftHalfLength + BlockBoat.Hips;
-            Assert.That(tip.y, Is.LessThan(-0.25f), "blade tip should be well under the waterline");
-            Assert.That(tip.x, Is.GreaterThan(1.15f), "blade dips outboard of the gunwale");
+            var tip = (pose.Position + pose.Rotation * Vector3.right * BoatAnimator.ShaftHalfLength) * BlockBoat.PilotScale + BlockBoat.Hips;
+            Assert.That(tip.y, Is.LessThan(-0.2f), "blade tip should be well under the waterline");
+            Assert.That(tip.x, Is.GreaterThan(BlockBoat.Beam * 0.5f + 0.1f), "blade dips outboard of the gunwale");
         }
     }
 }

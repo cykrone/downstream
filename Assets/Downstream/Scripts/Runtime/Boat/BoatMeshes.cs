@@ -6,13 +6,19 @@ namespace Downstream.Boat
 {
     /// <summary>
     /// Procedural meshes for the race boat: a lofted hull with a crowned deck and rub rail, a
-    /// seated pilot in a vest and helmet, and a paddle. Sized to the sim's 2 x 0.6 x 4 m hull
+    /// seated pilot in a vest and helmet, and a paddle. Sized to the sim's 1.4 x 0.6 x 4 m hull
     /// box so the visual matches what the sim collides. Reference: stylised whitewater raft and
     /// open canoe silhouettes (fine bow entry, full midships, flat transom).
     /// </summary>
     public static class BlockBoat
     {
         public const float Length = 4f;
+        /// <summary>Beam: matches BoatTuning.HullBeam. A wide canoe, so a seated pilot's paddle reaches the water
+        /// outboard of the rail with a natural arm length.</summary>
+        public const float Beam = 1.4f;
+        /// <summary>The pilot is built at unit scale about the hips and scaled up as a whole on the prefab:
+        /// an adult in a canoe rather than a child in a raft.</summary>
+        public const float PilotScale = 1.1f;
         private const int Stations = 16;
         private const int RingPoints = 11;
 
@@ -27,7 +33,7 @@ namespace Downstream.Boat
         {
             float stern = Mathf.Lerp(0.72f, 1.0f, Smooth(0f, 0.38f, t));
             float bow = 1f - Mathf.Pow(Smooth(0.42f, 1f, t), 1.7f) * 0.95f;
-            return stern * bow;
+            return stern * bow * (Beam * 0.5f);
         }
 
         private static float KeelY(float t) => -0.34f + 0.26f * Smooth(0.55f, 1f, t) + 0.06f * (1f - Smooth(0f, 0.25f, t));
@@ -159,11 +165,12 @@ namespace Downstream.Boat
 
             // Cockpit coaming: four rounded bars around the seat well.
             var coaming = new List<(Mesh, Matrix4x4)>();
+            float half = HalfWidth(0.38f);
             var bar = BlockMeshes.BevelledBox(new Vector3(0.1f, 0.12f, 1.5f), 0.04f, "CoamingSide");
-            var barEnd = BlockMeshes.BevelledBox(new Vector3(1.2f, 0.12f, 0.1f), 0.04f, "CoamingEnd");
+            var barEnd = BlockMeshes.BevelledBox(new Vector3(half * 1.2f, 0.12f, 0.1f), 0.04f, "CoamingEnd");
             float deckY = SheerY(0.38f) + 0.05f;
-            coaming.Add((bar, Matrix4x4.TRS(new Vector3(-0.6f, deckY + 0.04f, -0.5f), Quaternion.identity, Vector3.one)));
-            coaming.Add((bar, Matrix4x4.TRS(new Vector3(0.6f, deckY + 0.04f, -0.5f), Quaternion.identity, Vector3.one)));
+            coaming.Add((bar, Matrix4x4.TRS(new Vector3(-half * 0.6f, deckY + 0.04f, -0.5f), Quaternion.identity, Vector3.one)));
+            coaming.Add((bar, Matrix4x4.TRS(new Vector3(half * 0.6f, deckY + 0.04f, -0.5f), Quaternion.identity, Vector3.one)));
             coaming.Add((barEnd, Matrix4x4.TRS(new Vector3(0f, deckY + 0.04f, 0.25f), Quaternion.identity, Vector3.one)));
             coaming.Add((barEnd, Matrix4x4.TRS(new Vector3(0f, deckY + 0.04f, -1.25f), Quaternion.identity, Vector3.one)));
             coaming.Add((b.ToMesh("Deck"), Matrix4x4.identity));
@@ -182,7 +189,7 @@ namespace Downstream.Boat
         public static readonly Vector3 ShoulderL = new Vector3(-0.30f, 0.42f, 0.02f);
         public static readonly Vector3 ShoulderR = new Vector3(0.30f, 0.42f, 0.02f);
         /// <summary>Paddle grip centre relative to the hips: in front of the chest.</summary>
-        public static readonly Vector3 GripFromHips = new Vector3(0f, 0.24f, 0.34f);
+        public static readonly Vector3 GripFromHips = new Vector3(0f, 0.30f, 0.34f);
 
         /// <summary>Head at its own origin (the neck pivot sits 0.3 m below the centre): skin tone.</summary>
         public static Mesh Head(string name = "PilotHead")
@@ -209,7 +216,7 @@ namespace Downstream.Boat
         public static Mesh Seat(string name = "PilotSeat")
         {
             float y0 = CockpitDeckY;
-            var seat = BlockMeshes.BevelledBox(new Vector3(0.9f, 0.16f, 0.6f), 0.05f, "Seat");
+            var seat = BlockMeshes.BevelledBox(new Vector3(HalfWidth(0.35f) * 0.9f, 0.16f, 0.6f), 0.05f, "Seat");
             return BlockMeshes.Merge(name, new List<(Mesh, Matrix4x4)> { (seat, Matrix4x4.Translate(new Vector3(0f, y0 + 0.08f, -0.6f))) });
         }
 
@@ -287,16 +294,19 @@ namespace Downstream.Boat
         public static Mesh Arm(string name = "PilotArm") => BlockMeshes.Cylinder(0.065f, 1f, 10, name);
 
         /// <summary>Paddle centred on its grip: shaft along X, blades at the ends twisted 90 degrees apart.</summary>
+        public const float PaddleShaft = 2.2f;   // pilot units; 2.42 m on the scaled pilot
+        public const float PaddleGripHalf = 0.31f;
         public static Mesh PaddleCentred(string name = "Paddle")
         {
-            var shaft = BlockMeshes.Cylinder(0.035f, 2.3f, 8, "Shaft");
+            var shaft = BlockMeshes.Cylinder(0.035f, PaddleShaft, 8, "Shaft");
             var blade = BlockMeshes.BevelledBox(new Vector3(0.05f, 0.46f, 0.26f), 0.02f, "Blade");
             var along = Quaternion.Euler(0f, 0f, 90f); // cylinder +Y onto +X
+            float half = PaddleShaft * 0.5f;
             var parts = new List<(Mesh, Matrix4x4)>
             {
-                (shaft, Matrix4x4.TRS(new Vector3(1.15f, 0f, 0f), along, Vector3.one)),
-                (blade, Matrix4x4.TRS(new Vector3(-1.15f, 0f, 0f), along, Vector3.one)),
-                (blade, Matrix4x4.TRS(new Vector3(1.15f, 0f, 0f), along * Quaternion.Euler(0f, 90f, 0f), Vector3.one)),
+                (shaft, Matrix4x4.TRS(new Vector3(half, 0f, 0f), along, Vector3.one)),
+                (blade, Matrix4x4.TRS(new Vector3(-half, 0f, 0f), along, Vector3.one)),
+                (blade, Matrix4x4.TRS(new Vector3(half, 0f, 0f), along * Quaternion.Euler(0f, 90f, 0f), Vector3.one)),
             };
             return BlockMeshes.Merge(name, parts);
         }
