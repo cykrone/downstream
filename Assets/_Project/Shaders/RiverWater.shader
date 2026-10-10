@@ -178,7 +178,9 @@ Shader "Downstream/River Water"
                 bool hole = (feat & RIVER_FEATURE_HOLE) != 0;
                 bool crest = (feat & RIVER_FEATURE_CREST) != 0;
                 bool lip = (feat & RIVER_FEATURE_WATERFALL_LIP) != 0;
-                bool eddySeam = (st.featuresAny & RIVER_FEATURE_EDDY) != 0 && (st.featuresAll & RIVER_FEATURE_EDDY) == 0;
+                // The eddy line: strongest where the bilinear eddy share crosses one half, so it runs smooth along the
+                // boundary instead of stepping texel by texel.
+                float eddySeam = smoothstep(0.25, 0.75, 1.0 - abs(2.0 * st.eddyWeight - 1.0));
 
                 // Gameplay normal: baked slope plus the wave slope, exactly as the sim sees it.
                 float2 slope = IN.staticSlopeAndWet.xy + waveSlope;
@@ -231,7 +233,7 @@ Shader "Downstream/River Water"
                 cover += 0.75 * smoothstep(_FoamFlowStart, _FoamFlowFull, speed);
                 cover += 0.8 * smoothstep(_FoamSlope, _FoamSlope * 2.5, slopeMag) * (0.55 + 0.45 * strokes);
                 cover += lane ? 0.05 : 0.0; // lanes read as glossy streaks, not white water
-                cover += eddySeam ? 0.85 : (eddy ? 0.18 : 0.0);
+                cover += eddySeam * 0.85 + (eddy ? 0.18 : 0.0);
                 cover += crest ? 0.6 : 0.0;
                 cover += lip ? 0.9 : 0.0;
                 cover += 0.3 * smoothstep(0.6, 0.1, depth);

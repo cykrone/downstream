@@ -74,22 +74,43 @@ namespace Downstream.Water
             _greybox.WaterfallDistance = 700f;
             _greybox.WaterfallDrop = 6f;
             _greybox.FloodableBank = 12f;
+            // Obstacles read as a course: slalom gardens, bridge piers, an island choke before the falls,
+            // a wide step and a rapid below it, a boulder gate near the finish. Eddies behind every rock.
             _greybox.Boulders = new[]
             {
                 new RiverBoulder { Distance = 220f, Lateral = 6f, Radius = 2f, EddyLength = 12f, EddyFlow = 1.5f },
+                // First rock garden: three rocks staggered across the channel.
+                new RiverBoulder { Distance = 300f, Lateral = -9f, Radius = 1.6f, EddyLength = 9f, EddyFlow = 1.3f },
+                new RiverBoulder { Distance = 322f, Lateral = 3f, Radius = 1.4f, EddyLength = 8f, EddyFlow = 1.3f },
+                new RiverBoulder { Distance = 346f, Lateral = 11f, Radius = 1.8f, EddyLength = 10f, EddyFlow = 1.4f },
                 new RiverBoulder { Distance = 520f, Lateral = -5f, Radius = 2.2f, EddyLength = 12f, EddyFlow = 1.4f },
+                // Bridge piers either side of the arch at 560 m.
+                new RiverBoulder { Distance = 557f, Lateral = -9f, Radius = 1.3f, EddyLength = 8f, EddyFlow = 1.3f },
+                new RiverBoulder { Distance = 557f, Lateral = 9f, Radius = 1.3f, EddyLength = 8f, EddyFlow = 1.3f },
+                // The island: a big rock in the run-in to the falls, go left or right.
+                new RiverBoulder { Distance = 640f, Lateral = -2f, Radius = 3.5f, EddyLength = 20f, EddyFlow = 1.7f },
                 new RiverBoulder { Distance = 860f, Lateral = 8f, Radius = 2.8f, EddyLength = 16f, EddyFlow = 1.6f },
+                // Second rock garden on the far side of the ledge.
+                new RiverBoulder { Distance = 1080f, Lateral = -10f, Radius = 1.5f, EddyLength = 9f, EddyFlow = 1.3f },
+                new RiverBoulder { Distance = 1100f, Lateral = 2f, Radius = 2f, EddyLength = 11f, EddyFlow = 1.4f },
+                new RiverBoulder { Distance = 1122f, Lateral = 12f, Radius = 1.6f, EddyLength = 9f, EddyFlow = 1.3f },
                 new RiverBoulder { Distance = 1150f, Lateral = -7f, Radius = 2.5f, EddyLength = 14f, EddyFlow = 1.5f },
+                // The gate: two rocks with one clean line between them.
+                new RiverBoulder { Distance = 1300f, Lateral = -7f, Radius = 2f, EddyLength = 11f, EddyFlow = 1.4f },
+                new RiverBoulder { Distance = 1300f, Lateral = 7f, Radius = 2f, EddyLength = 11f, EddyFlow = 1.4f },
                 new RiverBoulder { Distance = 1380f, Lateral = 4f, Radius = 1.8f, EddyLength = 10f, EddyFlow = 1.3f },
+                new RiverBoulder { Distance = 1450f, Lateral = -3f, Radius = 2.2f, EddyLength = 12f, EddyFlow = 1.4f },
             };
-            // The hole sits on river left; the tongue down the right is the clean line.
+            // The holes sit to one side; the tongue past each is the clean line. The step below the falls is wide.
             _greybox.Ledges = new[]
             {
                 new RiverLedge { Distance = 450f, Drop = 0.4f, HoleLength = 4f, Lateral = -8f, Width = 10f },
+                new RiverLedge { Distance = 800f, Drop = 0.35f, HoleLength = 4f, Lateral = 0f, Width = 14f },
                 new RiverLedge { Distance = 1020f, Drop = 0.5f, HoleLength = 5f, Lateral = 7f, Width = 12f },
             };
             _greybox.WaveTrains = new[]
             {
+                new StandingWaveTrain { Distance = 740f, Count = 4, Wavelength = 10f, Height = 0.6f },
                 new StandingWaveTrain { Distance = 950f, Count = 5, Wavelength = 12f, Height = 0.7f },
                 new StandingWaveTrain { Distance = 1250f, Count = 4, Wavelength = 14f, Height = 0.9f },
             };

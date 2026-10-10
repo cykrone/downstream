@@ -50,6 +50,7 @@ struct RiverStaticSample
     int features;    // nearest texel, as the CPU returns it
     int featuresAny; // OR of every contributing texel: seams between features (eddy lines) live here
     int featuresAll; // AND of every contributing texel
+    float eddyWeight; // bilinear share of eddy texels: 0.5 on the eddy line, so seams draw smooth
 };
 
 struct RiverWaterSample
@@ -63,6 +64,7 @@ struct RiverWaterSample
     int features;
     int featuresAny;
     int featuresAll;
+    float eddyWeight;
     float2 staticSlope; // slope of the baked surface alone (waterfalls, rapids), without waves
 };
 
@@ -116,6 +118,7 @@ RiverStaticSample SampleRiverStatic(float2 xz)
         int f = (int)round(b.y);
         s.featuresAny |= f;
         s.featuresAll &= f;
+        if ((f & RIVER_FEATURE_EDDY) != 0) s.eddyWeight += w;
         if (w > bestW)
         {
             bestW = w;
@@ -134,6 +137,7 @@ RiverStaticSample SampleRiverStatic(float2 xz)
     s.bedHeight *= inv;
     s.flow *= inv;
     s.riverDistance *= inv;
+    s.eddyWeight *= inv;
     s.hasData = true;
     return s;
 }
@@ -226,6 +230,7 @@ RiverWaterSample SampleRiverWater(float2 xz, float t)
     r.features = s.features;
     r.featuresAny = s.featuresAny;
     r.featuresAll = s.featuresAll;
+    r.eddyWeight = s.eddyWeight;
     if (depth <= 0.0)
     {
         // Dry: report the level so a mesh can still sit at it.

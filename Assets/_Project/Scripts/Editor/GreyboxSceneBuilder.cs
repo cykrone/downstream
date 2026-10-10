@@ -28,16 +28,18 @@ namespace Downstream.Editor
         private const string Root = "Assets/_Project";
         private const string SettingsDir = Root + "/Settings";
         private const string TrackDir = Root + "/Tracks/Greybox";
+        private const string MegaKitDir = Root + "/Art/Vendor/StylizedNatureMegaKit/Models";
+        private const string HdriPath = Root + "/Art/Vendor/PolyHaven/kloofendal_48d_partly_cloudy_puresky_2k.hdr";
         private const string PrefabDir = Root + "/Prefabs";
         private const string SceneDir = Root + "/Scenes";
 
         // Design doc, Colour: calm ground (grass, earth, sand, turquoise water); pop accents only on
         // boats, gear and anything you race for. Materials are physically based, roughness 0.6-0.9 on
         // land; only water shines.
-        private static readonly Color Grass = new Color(0.42f, 0.58f, 0.30f);
+        private static readonly Color Grass = new Color(0.36f, 0.50f, 0.26f);
         private static readonly Color Earth = new Color(0.60f, 0.50f, 0.36f);
         private static readonly Color Rock = new Color(0.52f, 0.51f, 0.48f);
-        private static readonly Color Sand = new Color(0.40f, 0.50f, 0.27f); // floodable meadow: darker grass, not beach
+        private static readonly Color Sand = new Color(0.34f, 0.44f, 0.24f); // floodable meadow: darker grass, not beach
         private static readonly Color Stones = new Color(0.55f, 0.53f, 0.47f);
         private static readonly Color Tomato = new Color(0.86f, 0.27f, 0.20f);
         private static readonly Color Cliff = new Color(0.36f, 0.37f, 0.40f);
@@ -73,7 +75,8 @@ namespace Downstream.Editor
             var earthMat = EnsureMaterial(TrackDir + "/GreyboxEarth.mat", litShader, Earth, 0.15f);
             var slopeMat = EnsureMaterial(TrackDir + "/GreyboxSlope.mat", litShader, new Color(0.36f, 0.50f, 0.26f), 0.2f);
             var propShader = Shader.Find("Downstream/Greybox Prop") ?? litShader;
-            var rockMat = PropMaterial(TrackDir + "/GreyboxRock.mat", propShader, new Color(0.50f, 0.50f, 0.48f), new Color(0.68f, 0.68f, 0.64f), new Color(0.30f, 0.31f, 0.32f));
+            // River boulders are wet rock: darker and bluer than the dry rocks on the banks.
+            var rockMat = PropMaterial(TrackDir + "/GreyboxRock.mat", propShader, new Color(0.34f, 0.36f, 0.40f), new Color(0.50f, 0.52f, 0.55f), new Color(0.18f, 0.20f, 0.24f));
             var groundShader = Shader.Find("Downstream/Greybox Ground") ?? litShader;
             var bedMat = EnsureMaterial(TrackDir + "/GreyboxBed.mat", groundShader, Stones, 0.35f);
             if (bedMat.HasProperty("_StoneColor")) { bedMat.SetColor("_StoneColor", Stones); bedMat.SetColor("_GrassColor", Sand); bedMat.SetColor("_SandColor", new Color(0.80f, 0.74f, 0.58f)); bedMat.SetColor("_EarthColor", Earth); bedMat.SetColor("_CliffColor", Cliff); }
@@ -145,7 +148,7 @@ namespace Downstream.Editor
             string dir = TrackDir + "/Dressing";
             if (!AssetDatabase.IsValidFolder(dir)) AssetDatabase.CreateFolder(TrackDir, "Dressing");
             var hills = EnsureMaterial(dir + "/Hills.mat", groundShader, Grass, 0.2f);
-            if (hills.HasProperty("_GrassColor")) { hills.SetColor("_GrassColor", new Color(0.40f, 0.54f, 0.28f)); hills.SetColor("_StoneColor", Stones); hills.SetColor("_SandColor", Sand); hills.SetColor("_EarthColor", Earth); hills.SetColor("_CliffColor", Cliff); }
+            if (hills.HasProperty("_GrassColor")) { hills.SetColor("_GrassColor", new Color(0.33f, 0.47f, 0.24f)); hills.SetColor("_StoneColor", Stones); hills.SetColor("_SandColor", Sand); hills.SetColor("_EarthColor", Earth); hills.SetColor("_CliffColor", Cliff); }
             var propShader = Shader.Find("Downstream/Greybox Prop") ?? litShader;
             var canopies = new[]
             {
@@ -190,6 +193,13 @@ namespace Downstream.Editor
             so.FindProperty("_post").objectReferenceValue = EnsureMaterial(dir + "/Post.mat", litShader, new Color(0.50f, 0.38f, 0.26f), 0.15f);
             so.FindProperty("_lantern").objectReferenceValue = lantern;
             so.FindProperty("_spray").objectReferenceValue = EnsureSprayMaterial(litShader);
+            // CC0 vendor models when they are on disk; the block props stay as the fallback.
+            SetObjects(so.FindProperty("_vendorBroadleaf"), Vendor("CommonTree_1", "CommonTree_2", "CommonTree_3", "CommonTree_4", "CommonTree_5", "TwistedTree_1", "TwistedTree_2", "TwistedTree_3"));
+            SetObjects(so.FindProperty("_vendorPines"), Vendor("Pine_1", "Pine_2", "Pine_3", "Pine_4", "Pine_5"));
+            SetObjects(so.FindProperty("_vendorBushes"), Vendor("Bush_Common", "Bush_Common_Flowers"));
+            SetObjects(so.FindProperty("_vendorRocks"), Vendor("Rock_Medium_1", "Rock_Medium_2", "Rock_Medium_3"));
+            SetObjects(so.FindProperty("_vendorGrass"), Vendor("Grass_Common_Short", "Grass_Common_Tall", "Grass_Wispy_Short", "Grass_Wispy_Tall", "Clover_1", "Fern_1"));
+            SetObjects(so.FindProperty("_vendorFlowers"), Vendor("Flower_3_Group", "Flower_4_Group", "Plant_1", "Plant_7", "Mushroom_Common"));
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 
@@ -199,6 +209,23 @@ namespace Downstream.Editor
             var mat = EnsureMaterial(path, shader, side, 0.15f);
             if (mat.HasProperty("_TopColor")) { mat.SetColor("_TopColor", top); mat.SetColor("_ShadeColor", under); }
             return mat;
+        }
+
+        private static GameObject[] Vendor(params string[] names)
+        {
+            var list = new List<GameObject>();
+            foreach (var n in names)
+            {
+                var go = AssetDatabase.LoadAssetAtPath<GameObject>(MegaKitDir + "/" + n + ".fbx");
+                if (go != null) list.Add(go);
+            }
+            return list.ToArray();
+        }
+
+        private static void SetObjects(SerializedProperty property, Object[] items)
+        {
+            property.arraySize = items.Length;
+            for (int i = 0; i < items.Length; i++) property.GetArrayElementAtIndex(i).objectReferenceValue = items[i];
         }
 
         private static void SetArray(SerializedProperty property, Material[] items)
@@ -225,15 +252,59 @@ namespace Downstream.Editor
             if (sky != null && sky.HasProperty("_SunDirection")) sky.SetVector("_SunDirection", -sun.transform.forward);
             // Sky-driven fill: cool in the shadows, refreshed at runtime by the dressing (DynamicGI.UpdateEnvironment).
             RenderSettings.ambientMode = AmbientMode.Skybox;
-            RenderSettings.ambientIntensity = 1.05f;
+            RenderSettings.ambientIntensity = 0.62f; // the HDRI sky is bright: keep grass and rock from blowing out
             RenderSettings.defaultReflectionMode = DefaultReflectionMode.Skybox;
             RenderSettings.defaultReflectionResolution = 256;
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
             RenderSettings.fogColor = FogColour;
+            if (sky != null && sky.shader != null && sky.shader.name == "Skybox/Panoramic" && sky.GetTexture("_MainTex") is Texture2D hdri && hdri.isReadable)
+            {
+                // Measure the HDRI: the sun is the brightest patch, the fog colour is the band just above the horizon.
+                AnalyseSky(hdri, out float sunAzimuth, out float sunElevation, out Color horizon);
+                // Turn the panorama so its sun sits where the design wants the key: upper left, our usual -38 degrees.
+                const float wantAzimuth = -38f;
+                sky.SetFloat("_Rotation", Mathf.Repeat(wantAzimuth - sunAzimuth, 360f));
+                sun.transform.rotation = Quaternion.Euler(sunElevation, wantAzimuth, 0f);
+                sun.intensity = 1.2f;
+                RenderSettings.fogColor = horizon;
+            }
             RenderSettings.fogStartDistance = 110f;
             RenderSettings.fogEndDistance = 900f;
             return sun;
+        }
+
+        /// <summary>
+        /// Reads a lat-long HDRI (Unity's panoramic mapping: u = 0.5 - atan2(z, x) / 2pi, v = 1 - acos(y) / pi):
+        /// the sun's azimuth and elevation (degrees, as a light's Euler angles) and the mean colour of the
+        /// band just above the horizon.
+        /// </summary>
+        private static void AnalyseSky(Texture2D hdri, out float sunAzimuth, out float sunElevation, out Color horizon)
+        {
+            var px = hdri.GetPixels();
+            int w = hdri.width, h = hdri.height;
+            float best = -1f; int bx = 0, by = 0;
+            var band = Color.black; int bandCount = 0;
+            for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                var c = px[y * w + x];
+                float lum = 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
+                if (lum > best) { best = lum; bx = x; by = y; }
+                float v = (y + 0.5f) / h;
+                if (v > 0.505f && v < 0.56f) { band += c; bandCount++; }
+            }
+            float u = (bx + 0.5f) / w, vv = (by + 0.5f) / h;
+            float lon = (0.5f - u) * 2f * Mathf.PI;      // atan2(z, x)
+            float lat = (1f - vv) * Mathf.PI;            // acos(y)
+            var dir = new Vector3(Mathf.Cos(lon) * Mathf.Sin(lat), Mathf.Cos(lat), Mathf.Sin(lon) * Mathf.Sin(lat));
+            sunAzimuth = Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg; // yaw of the direction toward the sun
+            sunElevation = Mathf.Asin(Mathf.Clamp(dir.y, -1f, 1f)) * Mathf.Rad2Deg;
+            // A light's forward points away from the sun: yaw flips by 180 degrees.
+            sunAzimuth = Mathf.Repeat(sunAzimuth + 180f, 360f);
+            if (sunAzimuth > 180f) sunAzimuth -= 360f;
+            horizon = bandCount > 0 ? band / bandCount : new Color(0.76f, 0.84f, 0.91f);
+            horizon = new Color(Mathf.Clamp01(horizon.r), Mathf.Clamp01(horizon.g), Mathf.Clamp01(horizon.b), 1f);
         }
 
         private static void CreateVolume(VolumeProfile profile)
@@ -291,6 +362,20 @@ namespace Downstream.Editor
             {
                 mat = new Material(shader);
                 AssetDatabase.CreateAsset(mat, path);
+            }
+            // A real sky when the CC0 HDRI is on disk: lat-long panorama, with the sun and horizon measured from it.
+            var hdri = AssetDatabase.LoadAssetAtPath<Texture2D>(HdriPath);
+            var panoramic = Shader.Find("Skybox/Panoramic");
+            if (hdri != null && panoramic != null)
+            {
+                mat.shader = panoramic;
+                mat.SetTexture("_MainTex", hdri);
+                mat.SetFloat("_Mapping", 1f);   // latitude-longitude
+                mat.SetFloat("_ImageType", 0f); // 360 degrees
+                mat.SetFloat("_Exposure", 0.82f);
+                mat.SetFloat("_Rotation", 0f);
+                EditorUtility.SetDirty(mat);
+                return mat;
             }
             mat.shader = shader;
             if (mat.HasProperty("_ZenithColor"))

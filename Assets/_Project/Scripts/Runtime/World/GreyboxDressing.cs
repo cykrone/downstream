@@ -33,6 +33,15 @@ namespace Downstream.World
         [SerializeField] private Material _plank;
         [SerializeField] private Material _shrine;
         [SerializeField] private Material _spray;
+        [Header("Vendor packs (CC0): used instead of the block props when set")]
+        [SerializeField] private GameObject[] _vendorBroadleaf;
+        [SerializeField] private GameObject[] _vendorPines;
+        [SerializeField] private GameObject[] _vendorBushes;
+        [SerializeField] private GameObject[] _vendorRocks;
+        [SerializeField] private GameObject[] _vendorGrass;
+        [SerializeField] private GameObject[] _vendorFlowers;
+        [SerializeField] private float _grassPer100m = 30f;
+        private readonly Dictionary<GameObject, float> _prefabHeights = new Dictionary<GameObject, float>();
         [Header("Density")]
         [SerializeField] private float _meadowTreesPer100m = 5f;
         [SerializeField] private float _hillTreesPer100m = 20f;
@@ -83,6 +92,8 @@ namespace Downstream.World
                 ScatterBushes(bushes, side, HillsIn + 2f, HillsIn + _hillDepth * 0.5f, _bushesPer100m, true);
                 ScatterReeds(plants, side);
                 ScatterFlowers(plants, side, 3.2f, 10.5f);
+                ScatterGrass(plants, side, 2.4f, 12f, _grassPer100m, false);
+                ScatterGrass(plants, side, HillsIn + 2f, HillsIn + 40f, _grassPer100m * 0.5f, true);
                 ScatterRocks(rocks, side, 2.2f, 10.5f, 1.4f, false);
                 ScatterRocks(rocks, side, HillsIn + 2f, HillsIn + _hillDepth, 2.2f, true);
                 LanternPosts(story, side);
@@ -416,8 +427,49 @@ namespace Downstream.World
             }
         }
 
+        private static bool Has(GameObject[] set) => set != null && set.Length > 0 && set[0] != null;
+
+        /// <summary>
+        /// Places a vendor model scaled to a target height (the packs are not all in the same units), so the
+        /// same density and silhouette rules hold whichever pack is wired.
+        /// </summary>
+        private GameObject VendorProp(Transform parent, GameObject prefab, Vector3 pos, Quaternion rot, float targetHeight, bool shadows)
+        {
+            if (!_prefabHeights.TryGetValue(prefab, out float h))
+            {
+                var probe = Instantiate(prefab);
+                var b = new Bounds(probe.transform.position, Vector3.zero);
+                bool any = false;
+                foreach (var r in probe.GetComponentsInChildren<Renderer>()) { if (!any) { b = r.bounds; any = true; } else b.Encapsulate(r.bounds); }
+                h = any ? Mathf.Max(b.size.y, 0.01f) : 1f;
+                Destroy(probe);
+                _prefabHeights[prefab] = h;
+            }
+            var go = Instantiate(prefab, pos, rot, parent);
+            go.transform.localScale = Vector3.one * (targetHeight / h);
+            foreach (var r in go.GetComponentsInChildren<Renderer>())
+            {
+                r.shadowCastingMode = shadows ? ShadowCastingMode.On : ShadowCastingMode.Off;
+                r.receiveShadows = true;
+            }
+            return go;
+        }
+
+        private void ScatterGrass(Transform parent, int side, float lIn, float lOut, float per100m, bool onHills)
+        {
+            if (!Has(_vendorGrass)) return;
+            int count = Mathf.RoundToInt(per100m * _g.Length / 100f);
+            for (int i = 0; i < count; i++)
+            {
+                float z = Rand(0f, _g.Length);
+                var pos = Place(side, lIn, lOut, z, onHills);
+                VendorProp(parent, Pick(_vendorGrass), pos, Quaternion.Euler(0f, Rand(0f, 360f), 0f), Rand(0.45f, 0.9f), false);
+            }
+        }
+
         private void RoundTree(Transform parent, Vector3 pos, Quaternion yaw, float scale)
         {
+            if (Has(_vendorBroadleaf)) { VendorProp(parent, Pick(_vendorBroadleaf), pos, yaw, 7.5f * scale, true); return; }
             float trunkH = 1.7f * scale;
             float r = 2.6f * scale;
             Prop(parent, "Trunk", _trunkMesh, _trunk, pos, yaw, new Vector3(scale * 1.5f, trunkH + r * 0.6f, scale * 1.5f));
@@ -426,6 +478,7 @@ namespace Downstream.World
 
         private void Pine(Transform parent, Vector3 pos, Quaternion yaw, float scale)
         {
+            if (Has(_vendorPines)) { VendorProp(parent, Pick(_vendorPines), pos, yaw, 10f * scale, true); return; }
             float trunkH = 1.6f * scale;
             Prop(parent, "Trunk", _trunkMesh, _trunk, pos, yaw, new Vector3(scale * 0.9f, trunkH + 1f, scale * 0.9f));
             float radius = 2.5f * scale;
@@ -440,6 +493,7 @@ namespace Downstream.World
                 float z = Rand(-10f, _g.Length + 20f);
                 var pos = Place(side, lIn, lOut, z, onHills);
                 float r = Rand(0.9f, 1.8f);
+                if (Has(_vendorBushes)) { VendorProp(parent, Pick(_vendorBushes), pos, Quaternion.Euler(0f, Rand(0f, 360f), 0f), r * 1.1f, true); continue; }
                 Prop(parent, "Bush", Pick(_canopyVariants), Pick(_canopies), pos + Vector3.up * (r * 0.45f), Quaternion.Euler(0f, Rand(0f, 360f), 0f), new Vector3(r, r * 0.7f, r));
             }
         }
@@ -452,6 +506,7 @@ namespace Downstream.World
                 float z = Rand(0f, _g.Length);
                 var pos = Place(side, lIn, lOut, z, onHills);
                 float s = Rand(0.5f, 1.6f);
+                if (Has(_vendorRocks)) { VendorProp(parent, Pick(_vendorRocks), pos, Quaternion.Euler(0f, Rand(0f, 360f), 0f), s * 1.2f, true); continue; }
                 Prop(parent, "Rock", Pick(_rockVariants), _rock, pos + Vector3.up * (s * 0.35f), Quaternion.Euler(0f, Rand(0f, 360f), 0f), new Vector3(s, s, s));
             }
         }
@@ -479,6 +534,12 @@ namespace Downstream.World
                 var centre = Meadow(side, Rand(lIn, lOut), z);
                 var mat = Pick(_flowers);
                 int n = _rng.Next(6, 14);
+                if (Has(_vendorFlowers))
+                {
+                    for (int i = 0; i < n / 2; i++)
+                        VendorProp(parent, Pick(_vendorFlowers), centre + new Vector3(Rand(-2.2f, 2.2f), 0f, Rand(-2.2f, 2.2f)), Quaternion.Euler(0f, Rand(0f, 360f), 0f), Rand(0.5f, 0.9f), false);
+                    continue;
+                }
                 for (int i = 0; i < n; i++)
                 {
                     var pos = centre + new Vector3(Rand(-1.6f, 1.6f), 0.28f, Rand(-1.6f, 1.6f));

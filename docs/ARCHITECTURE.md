@@ -97,7 +97,7 @@ side (in river coordinates, so it follows the course) climbs a short earth riser
 terrace and on into tiered hills; there are no extruded bank strips to fold on bends or clip the
 hills. The greybox river runs on a 15 degree grade so it visibly flows downhill; the water shader
 judges whitewater on slope in excess of that grade (`_RiverBaseSlope`), so only rapids, ledges and
-the falls break white. The course is laid out like a race track: two meander components (90 m over
+the falls break white. Obstacles read as a course: slalom rock gardens, bridge piers, an island choke in the run-in to the falls, a wide step and a rapid below it, a boulder gate near the finish, each rock with its eddy. The course is laid out like a race track: two meander components (90 m over
 500 m and 15 m over 230 m) swing the heading through about 55 degrees in each sweeper. Because the
 centreline is a sheared function x(z), the field's half-span and the dressing's lateral offsets are
 scaled by the slope so the channel keeps its width across the sharp bends.
@@ -113,6 +113,17 @@ outside of a slide coloured by tier, a boost plume and a landing splash, all thr
 with speed as well as boost. `ItemWorldView` shows pickups as flagged floats on a ring, mines as
 spiked spheres, logs as capped trunks, pikes as finned bodies and whirlpools as a spinning disc with
 spiral foam arms.
+
+Under `Assets/_Project/Art/Vendor` sit two CC0 packs, tracked with Git LFS: the Stylized Nature
+MegaKit (Quaternius; 68 models of trees, pines, bushes, rocks, grass, flowers and mushrooms with
+their textures) and a Poly Haven sky HDRI. `VendorAssetPostprocessor` imports them straight into the
+look: URP Lit, matte, foliage alpha-clipped and two-sided, the kit's autumn leaf texture swapped for
+the summer one, the HDRI readable. When the packs are on disk the scene builder wires them into the
+dressing, which scales each model to a target height from its measured bounds so density and
+silhouette rules hold whichever pack is used; without them the block props below are the fallback.
+The builder also measures the HDRI (brightest patch = sun, the band above the horizon = fog colour),
+turns the panorama so the sun sits where the design wants the key light, and sets the directional
+light's elevation and the fog to match.
 
 `GreyboxDressing` dresses the valley at runtime from a fixed seed, nothing saved in the scene:
 rolling grass hills behind the bank blocks (a heightfield in river coordinates, so it follows the
