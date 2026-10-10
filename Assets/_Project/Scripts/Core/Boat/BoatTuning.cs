@@ -33,6 +33,8 @@ namespace Downstream.Core.Boat
         public float TurnRate;
         public float YawResponse;
         public float AirSteerFactor;    // design: 0.4
+        public float TurnSpeedFalloff;  // m/s at which keel turning has halved: fast boats need the drift
+        public float TurnScrub;         // forward speed lost per radian of keel turn, as a fraction per second
 
         // Buoyancy (accelerations per unit mass).
         public float BuoyancyStiffness;
@@ -77,6 +79,13 @@ namespace Downstream.Core.Boat
         // Shallows.
         public float ShallowDrag;
 
+        // Banks and rocks: contact into the surface faster than WallHitSpeed costs speed and a slap; glancing hits slide.
+        public float WallHitSpeed;
+        public float WallHitSpeedLoss;
+        public float WallHitSlowSeconds;
+        public float WallRestitution;
+        public float EddyDrag;          // extra forward drag inside an eddy: slack water is slow water
+
         // River features (design: eddy pivot of 120 degrees in 1.0 s or less on Rapid; holes grab for up to 1.5 s).
         public float EddyTurnScale;
         public float HoleGrip;
@@ -110,9 +119,11 @@ namespace Downstream.Core.Boat
                 KeelGrip = 1f,
                 DriftGrip = 0.35f,
                 GripRate = 10f,
-                TurnRate = 1.2f + 0.15f * hull.Handling,
+                TurnRate = 1.05f + 0.15f * hull.Handling,
                 YawResponse = 10f,
                 AirSteerFactor = 0.4f,
+                TurnSpeedFalloff = 28f,
+                TurnScrub = 0.07f,
 
                 BuoyancyStiffness = 220f,
                 BuoyancyDamping = 24f,
@@ -150,7 +161,13 @@ namespace Downstream.Core.Boat
 
                 ShallowDrag = 3f,
 
-                EddyTurnScale = 1.7f,
+                WallHitSpeed = 3.5f,
+                WallHitSpeedLoss = 0.35f,
+                WallHitSlowSeconds = 0.6f,
+                WallRestitution = 0.25f,
+                EddyDrag = 0.6f,
+
+                EddyTurnScale = 2.1f, // design: 120 degrees in 1.0 s on Rapid, with the slower keel turning above
                 HoleGrip = 14f,
                 HoleMaxHold = 1.5f,
                 CrestHopScale = 1.8f,

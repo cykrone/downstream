@@ -105,6 +105,7 @@ namespace Downstream.World
             Dock(landmarks, 1180f, 1);
             Shrine(landmarks, 900f, 1);
             FallsMist(landmarks);
+            RiverBoulders(landmarks);
             SetUpLighting();
         }
 
@@ -208,6 +209,83 @@ namespace Downstream.World
         // ---- meshes -----------------------------------------------------------------------------
 
         private Mesh Keep(Mesh m) { _meshes.Add(m); return m; }
+
+        /// <summary>
+        /// Re-skins the river boulders with the vendor rocks (wet: darker, glossier) and puts a standing
+        /// splash on each upstream face, so an obstacle reads as a rock in moving water, not a block.
+        /// </summary>
+        private void RiverBoulders(Transform parent)
+        {
+            if (!Has(_vendorRocks) || _g.Boulders == null) return;
+            var waterMesh = FindAnyObjectByType<GreyboxWaterMesh>();
+            if (waterMesh == null) return;
+            var byName = new Dictionary<string, Transform>();
+            foreach (var tr in waterMesh.GetComponentsInChildren<Transform>(true)) if (tr.name.StartsWith("Boulder ")) byName[tr.name] = tr;
+            for (int i = 0; i < _g.Boulders.Length; i++)
+            {
+                var b = _g.Boulders[i];
+                if (!byName.TryGetValue($"Boulder {i}", out var blockT)) continue;
+                var block = blockT.gameObject;
+                var pos = block.transform.position;
+                var mr = block.GetComponent<MeshRenderer>();
+                if (mr != null) mr.enabled = false;
+                var rock = VendorProp(parent, _vendorRocks[i % _vendorRocks.Length], pos - Vector3.up * (b.Radius * 0.45f), Quaternion.Euler(0f, 37f * i, 0f), b.Radius * 1.9f, true);
+                foreach (var r in rock.GetComponentsInChildren<Renderer>())
+                {
+                    var mat = r.material; // instance: wet rock
+                    _materials.Add(mat);
+                    if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", mat.GetColor("_BaseColor") * new Color(0.62f, 0.66f, 0.72f, 1f));
+                    if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", 0.42f);
+                    if (mat.HasProperty("_EnvironmentReflections")) { mat.SetFloat("_EnvironmentReflections", 1f); mat.DisableKeyword("_ENVIRONMENTREFLECTIONS_OFF"); }
+                }
+                var tangent = Tangent(b.Distance);
+                Splash(parent, pos - tangent * (b.Radius * 0.85f) + Vector3.up * 0.1f, -tangent, b.Radius);
+            }
+        }
+
+        /// <summary>A standing splash: water piling up and breaking on the upstream side of a rock.</summary>
+        private void Splash(Transform parent, Vector3 pos, Vector3 upstream, float radius)
+        {
+            if (_spray == null) return;
+            var go = new GameObject("Rock Splash");
+            go.transform.SetParent(parent, false);
+            go.transform.position = pos;
+            go.transform.rotation = Quaternion.LookRotation(Vector3.up * 0.8f + upstream * 0.6f, Vector3.up);
+            var ps = go.AddComponent<ParticleSystem>();
+            ps.Stop();
+            var main = ps.main;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.5f, 0.9f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(1.2f, 2.8f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.35f * radius, 0.8f * radius);
+            main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+            main.startColor = new Color(1f, 1f, 1f, 0.75f);
+            main.gravityModifier = 1.1f;
+            main.simulationSpace = ParticleSystemSimulationSpace.World;
+            main.maxParticles = 120;
+            var em = ps.emission; em.rateOverTime = 14f * radius;
+            var shape = ps.shape;
+            shape.shapeType = ParticleSystemShapeType.Cone;
+            shape.angle = 28f;
+            shape.radius = radius * 0.5f;
+            var col = ps.colorOverLifetime;
+            col.enabled = true;
+            col.color = new ParticleSystem.MinMaxGradient(new Gradient
+            {
+                colorKeys = new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                alphaKeys = new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0.7f, 0.5f), new GradientAlphaKey(0f, 1f) },
+            });
+            var size = ps.sizeOverLifetime;
+            size.enabled = true;
+            size.size = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0f, 0.6f), new Keyframe(0.5f, 1f), new Keyframe(1f, 1.3f)));
+            var r = go.GetComponent<ParticleSystemRenderer>();
+            var mat = new Material(_spray);
+            if (mat.GetTexture("_BaseMap") == null) mat.SetTexture("_BaseMap", WaterTextures.SoftSprite);
+            _materials.Add(mat);
+            r.sharedMaterial = mat;
+            r.shadowCastingMode = ShadowCastingMode.Off;
+            r.receiveShadows = false;
+            ps.Play();
+        }
 
         /// <summary>Mist boiling up from the plunge pool below the waterfall, drifting downstream.</summary>
         private void FallsMist(Transform parent)

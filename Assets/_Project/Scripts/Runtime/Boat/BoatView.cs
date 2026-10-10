@@ -13,6 +13,7 @@ namespace Downstream.Boat
         [SerializeField] private Transform _hull;
         [SerializeField] private Renderer[] _livery;
         [SerializeField] private BoatEffects _effects;
+        [SerializeField] private BoatAnimator _animator;
 
         /// <summary>Hull colours by boat index: a shipped-game livery set, distinct at a glance.</summary>
         private static readonly Color[] Liveries =
@@ -65,11 +66,13 @@ namespace Downstream.Boat
             State = state;
             transform.SetPositionAndRotation(state.Position.ToUnity(), UnityConversions.BoatRotation(state));
             if (_effects != null) _effects.Apply(state, Water, RaceTime);
+            if (_animator != null) _animator.Apply(state, Time.deltaTime);
         }
 
         public void OnSimEvents(BoatEvents events)
         {
             LastEvents = events;
+            if (_effects != null) _effects.OnEvents(events);
             // Hook point for audio, VFX and HUD: landing slaps, drift sparks by tier, boost trails.
         }
 
@@ -77,6 +80,7 @@ namespace Downstream.Boat
         {
             _hull = transform;
             _effects = GetComponent<BoatEffects>();
+            _animator = GetComponent<BoatAnimator>();
         }
     }
 }

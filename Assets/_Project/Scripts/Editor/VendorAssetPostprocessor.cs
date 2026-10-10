@@ -16,7 +16,7 @@ namespace Downstream.Editor
         private bool IsVendor => assetPath.Replace('\\', '/').StartsWith(VendorRoot);
 
         // Bump to reimport every vendor asset when these rules change.
-        public override uint GetVersion() => 3;
+        public override uint GetVersion() => 4;
 
         private static bool IsFoliageName(string name)
         {
@@ -51,18 +51,22 @@ namespace Downstream.Editor
                 importer.textureShape = TextureImporterShape.Texture2D;
                 importer.sRGBTexture = false;
                 importer.isReadable = true;
-                importer.mipmapEnabled = true;
-                importer.maxTextureSize = 2048;
+                // No mips: the panorama is stretched most at the horizon, where a mip would blur it.
+                importer.mipmapEnabled = false;
+                importer.anisoLevel = 16;
+                importer.maxTextureSize = 4096;
                 importer.textureCompression = TextureImporterCompression.Uncompressed;
                 return;
             }
-            bool normal = name.EndsWith("_Normal");
+            bool normal = name.EndsWith("_Normal") || name.Contains("_nor_gl");
             importer.textureType = normal ? TextureImporterType.NormalMap : TextureImporterType.Default;
             importer.sRGBTexture = !normal;
             importer.alphaIsTransparency = !normal && IsFoliageName(name);
             importer.mipmapEnabled = true;
             importer.maxTextureSize = 1024;
+            importer.anisoLevel = 8;
             importer.textureCompression = TextureImporterCompression.Compressed;
+            if (assetPath.Contains("/PolyHaven/")) importer.wrapMode = TextureWrapMode.Repeat;
         }
 
         private void OnPostprocessMaterial(Material material)

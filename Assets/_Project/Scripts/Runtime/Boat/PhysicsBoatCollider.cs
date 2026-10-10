@@ -22,8 +22,9 @@ namespace Downstream.Boat
             _mask = worldMask;
         }
 
-        public bool Resolve(ref SimVec3 position, ref SimVec3 velocity, float yaw, in BoatTuning tuning)
+        public bool Resolve(ref SimVec3 position, ref SimVec3 velocity, float yaw, in BoatTuning tuning, out float impactSpeed)
         {
+            impactSpeed = 0f;
             var pos = position.ToUnity();
             var rot = Quaternion.Euler(0f, yaw * SimMath.Rad2Deg, 0f);
             float half = Mathf.Max(0f, tuning.HullLength * 0.5f - _proxy.radius);
@@ -39,7 +40,11 @@ namespace Downstream.Boat
                 pos += dir * distance;
                 var n = dir.ToSim();
                 float into = SimVec3.Dot(velocity, n);
-                if (into < 0f) velocity -= n * into;
+                if (into < 0f)
+                {
+                    impactSpeed = Mathf.Max(impactSpeed, -into);
+                    velocity -= n * (into * (1f + tuning.WallRestitution));
+                }
                 touched = true;
             }
             position = pos.ToSim();

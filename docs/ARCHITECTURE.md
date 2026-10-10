@@ -37,6 +37,13 @@ and draws as a 0.5 m sawtooth at grazing angles.
 - All maths goes through `SimMath`, so the time-trial path can later switch to Unity.Mathematics in a
   Burst job with `FloatMode.Deterministic` without touching callers.
 - PhysX only answers collision queries (`PhysicsBoatCollider`); `Physics.simulationMode` is Script.
+  The collider reports the closing speed into the hardest contact; past `WallHitSpeed` the sim takes
+  speed off, wallows the hull for a moment and drops any drift (`HitWall`), while glancing contact
+  still slides along the bank with a small rebound (`WallRestitution`).
+- Handling trade-offs that make the course a course: keel turning scrubs speed (`TurnScrub`) and
+  loosens with speed (`TurnSpeedFalloff`), so the drift, with its charge tiers and boost, is the fast
+  way round a bend; eddies add forward drag on top of their reversed flow; the greybox river runs a
+  current worth reading (3.5 m/s base, 3.5 more in the lane, narrows faster still by continuity).
 
 ## Unity side
 
@@ -104,8 +111,14 @@ scaled by the slope so the channel keeps its width across the sharp bends.
 
 Boats are lofted hulls (`BlockBoat` in `BoatMeshes.cs`): a fine bow entry, full midships, a flat
 transom, a crowned deck with a rub rail and cockpit coaming, a seated pilot in a vest and helmet,
-and a double-bladed paddle. `BoatView` gives each boat a livery from an eight-colour set (hull and
-helmet share one material instance per boat). `BoatEffects` sells speed from the presented state
+and a double-bladed paddle. The pilot is articulated (hips, torso, neck, shoulders, grips) with
+goggles, a helmet peak and stripe, vest straps and collar, jersey sleeves, gloved hands on the
+paddle and knees under the coaming; `BoatAnimator` drives it from the presented state alone: a
+stroke cycle whose rate follows speed (blades dip alternately, the shaft sweeps and slides, the arms
+stretch to the grips), a torso that twists with the stroke and leans forward with speed and into a
+drift, a head that stays level and looks into the turn, and a paddle raised clear in the air.
+`BoatView` gives each boat a livery from an eight-colour set (hull, helmet, vest trim and sleeves
+share one material instance per boat). `BoatEffects` sells speed from the presented state
 alone: a stern wake and two bow wakes as trail ribbons that are re-sampled onto the water surface
 every frame (so waves do not cut them), bow spray that scales with speed, drift spray off the
 outside of a slide coloured by tier, a boost plume and a landing splash, all through

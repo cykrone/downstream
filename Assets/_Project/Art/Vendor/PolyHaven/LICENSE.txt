@@ -1,3 +1,5 @@
-kloofendal_48d_partly_cloudy_puresky_2k.hdr
+kloofendal_48d_partly_cloudy_puresky_4k.hdr
 Source: https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky
+Textures/: aerial_grass_rock, leafy_grass, forrest_ground_01, rock_face (1k diffuse + OpenGL normal)
+Sources: https://polyhaven.com/a/<name>
 Licence: CC0 1.0 Universal (https://creativecommons.org/publicdomain/zero/1.0/)

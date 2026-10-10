@@ -153,6 +153,133 @@ namespace Downstream.Boat
         /// <summary>Seat height for the pilot at the cockpit.</summary>
         public static float CockpitDeckY => SheerY(0.38f) + 0.05f;
 
+        /// <summary>Where the pilot sits: hips on the seat in the cockpit, in hull space.</summary>
+        public static Vector3 Hips => new Vector3(0f, CockpitDeckY + 0.16f, -0.6f);
+        /// <summary>Neck pivot relative to the hips.</summary>
+        public static readonly Vector3 NeckFromHips = new Vector3(0f, 0.56f, 0f);
+        /// <summary>Shoulder pivots relative to the hips (left, right).</summary>
+        public static readonly Vector3 ShoulderL = new Vector3(-0.30f, 0.42f, 0.02f);
+        public static readonly Vector3 ShoulderR = new Vector3(0.30f, 0.42f, 0.02f);
+        /// <summary>Paddle grip centre relative to the hips: in front of the chest.</summary>
+        public static readonly Vector3 GripFromHips = new Vector3(0f, 0.24f, 0.34f);
+
+        /// <summary>Head at its own origin (the neck pivot sits 0.3 m below the centre): skin tone.</summary>
+        public static Mesh Head(string name = "PilotHead")
+        {
+            var head = BlockMeshes.SmoothSphere(0.26f, 10, 14, "Head");
+            return BlockMeshes.Merge(name, new List<(Mesh, Matrix4x4)> { (head, Matrix4x4.Translate(new Vector3(0f, 0.30f, 0f))) });
+        }
+
+        /// <summary>Helmet dome around the head, same pivot as <see cref="Head"/>: hull colour.</summary>
+        public static Mesh HelmetOnHead(string name = "PilotHelmet")
+        {
+            var dome = BlockMeshes.SmoothSphere(0.30f, 8, 14, "Dome");
+            return BlockMeshes.Merge(name, new List<(Mesh, Matrix4x4)> { (dome, Matrix4x4.TRS(new Vector3(0f, 0.38f, 0f), Quaternion.identity, new Vector3(1f, 0.72f, 1f))) });
+        }
+
+        /// <summary>Torso (life vest) standing on its hip pivot: trim colour.</summary>
+        public static Mesh Torso(string name = "PilotTorso")
+        {
+            var torso = BlockMeshes.BevelledBox(new Vector3(0.58f, 0.52f, 0.40f), 0.12f, "Torso");
+            return BlockMeshes.Merge(name, new List<(Mesh, Matrix4x4)> { (torso, Matrix4x4.Translate(new Vector3(0f, 0.26f, 0f))) });
+        }
+
+        /// <summary>The seat in the cockpit (static, trim colour).</summary>
+        public static Mesh Seat(string name = "PilotSeat")
+        {
+            float y0 = CockpitDeckY;
+            var seat = BlockMeshes.BevelledBox(new Vector3(0.9f, 0.16f, 0.6f), 0.05f, "Seat");
+            return BlockMeshes.Merge(name, new List<(Mesh, Matrix4x4)> { (seat, Matrix4x4.Translate(new Vector3(0f, y0 + 0.08f, -0.6f))) });
+        }
+
+        /// <summary>Eyes and a goggle band with two lenses, in head space (dark material).</summary>
+        public static Mesh Goggles(string name = "PilotGoggles")
+        {
+            var band = BlockMeshes.Cylinder(0.272f, 0.07f, 16, "Band");
+            var lens = BlockMeshes.BevelledBox(new Vector3(0.13f, 0.11f, 0.05f), 0.02f, "Lens");
+            var eye = BlockMeshes.SmoothSphere(0.03f, 6, 8, "Eye");
+            return BlockMeshes.Merge(name, new List<(Mesh, Matrix4x4)>
+            {
+                (band, Matrix4x4.Translate(new Vector3(0f, 0.31f, 0f))),
+                (lens, Matrix4x4.TRS(new Vector3(-0.085f, 0.345f, 0.245f), Quaternion.Euler(0f, -14f, 0f), Vector3.one)),
+                (lens, Matrix4x4.TRS(new Vector3(0.085f, 0.345f, 0.245f), Quaternion.Euler(0f, 14f, 0f), Vector3.one)),
+                (eye, Matrix4x4.Translate(new Vector3(-0.08f, 0.27f, 0.245f))),
+                (eye, Matrix4x4.Translate(new Vector3(0.08f, 0.27f, 0.245f))),
+            });
+        }
+
+        /// <summary>Helmet peak and chin strap, in head space (trim colour).</summary>
+        public static Mesh HelmetTrim(string name = "PilotHelmetTrim")
+        {
+            var peak = BlockMeshes.BevelledBox(new Vector3(0.34f, 0.04f, 0.16f), 0.015f, "Peak");
+            var stripe = BlockMeshes.BevelledBox(new Vector3(0.07f, 0.03f, 0.56f), 0.01f, "Stripe");
+            var strap = BlockMeshes.BevelledBox(new Vector3(0.03f, 0.22f, 0.03f), 0.01f, "Strap");
+            return BlockMeshes.Merge(name, new List<(Mesh, Matrix4x4)>
+            {
+                (peak, Matrix4x4.TRS(new Vector3(0f, 0.44f, 0.30f), Quaternion.Euler(-12f, 0f, 0f), Vector3.one)),
+                (stripe, Matrix4x4.TRS(new Vector3(0f, 0.60f, 0f), Quaternion.identity, Vector3.one)),
+                (strap, Matrix4x4.TRS(new Vector3(-0.25f, 0.22f, 0.02f), Quaternion.Euler(0f, 0f, 8f), Vector3.one)),
+                (strap, Matrix4x4.TRS(new Vector3(0.25f, 0.22f, 0.02f), Quaternion.Euler(0f, 0f, -8f), Vector3.one)),
+            });
+        }
+
+        /// <summary>Vest straps, belt and collar, in torso (hip) space: livery colour.</summary>
+        public static Mesh VestTrim(string name = "PilotVestTrim")
+        {
+            var strap = BlockMeshes.BevelledBox(new Vector3(0.09f, 0.40f, 0.05f), 0.015f, "VestStrap");
+            var belt = BlockMeshes.BevelledBox(new Vector3(0.62f, 0.06f, 0.44f), 0.015f, "Belt");
+            var collar = BlockMeshes.Cylinder(0.12f, 0.06f, 12, "Collar");
+            return BlockMeshes.Merge(name, new List<(Mesh, Matrix4x4)>
+            {
+                (strap, Matrix4x4.Translate(new Vector3(-0.15f, 0.30f, 0.205f))),
+                (strap, Matrix4x4.Translate(new Vector3(0.15f, 0.30f, 0.205f))),
+                (belt, Matrix4x4.Translate(new Vector3(0f, 0.08f, 0f))),
+                (collar, Matrix4x4.Translate(new Vector3(0f, 0.50f, 0f))),
+            });
+        }
+
+        /// <summary>Thighs and knees, from the hips forward under the coaming, in hip space (dark material).</summary>
+        public static Mesh Legs(string name = "PilotLegs")
+        {
+            var thigh = BlockMeshes.BevelledBox(new Vector3(0.17f, 0.15f, 0.50f), 0.05f, "Thigh");
+            var knee = BlockMeshes.SmoothSphere(0.085f, 6, 10, "Knee");
+            return BlockMeshes.Merge(name, new List<(Mesh, Matrix4x4)>
+            {
+                (thigh, Matrix4x4.TRS(new Vector3(-0.15f, 0.06f, 0.28f), Quaternion.Euler(-14f, -4f, 0f), Vector3.one)),
+                (thigh, Matrix4x4.TRS(new Vector3(0.15f, 0.06f, 0.28f), Quaternion.Euler(-14f, 4f, 0f), Vector3.one)),
+                (knee, Matrix4x4.Translate(new Vector3(-0.15f, 0.13f, 0.52f))),
+                (knee, Matrix4x4.Translate(new Vector3(0.15f, 0.13f, 0.52f))),
+            });
+        }
+
+        /// <summary>A gloved hand, closed round the shaft: sits at a grip in paddle space (dark material).</summary>
+        public static Mesh Hand(string name = "PilotHand")
+        {
+            var palm = BlockMeshes.SmoothSphere(0.075f, 6, 10, "Palm");
+            return BlockMeshes.Merge(name, new List<(Mesh, Matrix4x4)> { (palm, Matrix4x4.Scale(new Vector3(1.1f, 1f, 1.2f))) });
+        }
+
+        /// <summary>A short jersey sleeve: a cylinder the animator keeps at the top of the arm (livery colour).</summary>
+        public static Mesh Sleeve(string name = "PilotSleeve") => BlockMeshes.Cylinder(0.085f, 1f, 10, name);
+
+        /// <summary>A unit-length arm along +Y from its shoulder pivot; the animator stretches it to the grip.</summary>
+        public static Mesh Arm(string name = "PilotArm") => BlockMeshes.Cylinder(0.065f, 1f, 10, name);
+
+        /// <summary>Paddle centred on its grip: shaft along X, blades at the ends twisted 90 degrees apart.</summary>
+        public static Mesh PaddleCentred(string name = "Paddle")
+        {
+            var shaft = BlockMeshes.Cylinder(0.035f, 2.3f, 8, "Shaft");
+            var blade = BlockMeshes.BevelledBox(new Vector3(0.05f, 0.46f, 0.26f), 0.02f, "Blade");
+            var along = Quaternion.Euler(0f, 0f, 90f); // cylinder +Y onto +X
+            var parts = new List<(Mesh, Matrix4x4)>
+            {
+                (shaft, Matrix4x4.TRS(new Vector3(1.15f, 0f, 0f), along, Vector3.one)),
+                (blade, Matrix4x4.TRS(new Vector3(-1.15f, 0f, 0f), along, Vector3.one)),
+                (blade, Matrix4x4.TRS(new Vector3(1.15f, 0f, 0f), along * Quaternion.Euler(0f, 90f, 0f), Vector3.one)),
+            };
+            return BlockMeshes.Merge(name, parts);
+        }
+
         /// <summary>Head and arms: skin tone.</summary>
         public static Mesh PilotSkin(string name = "PilotSkin")
         {

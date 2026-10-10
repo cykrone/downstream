@@ -15,9 +15,11 @@ namespace Downstream.Core.AI
         private readonly RaceTrack _track;
         private int _hint;
 
-        public float LookAheadSeconds { get; set; } = 0.9f;
+        public float LookAheadSeconds { get; set; } = 1.1f;
         public float MinLookAhead { get; set; } = 10f;
         public float SteerGain { get; set; } = 2.2f;
+        /// <summary>Yaw-rate damping: the keel scrubs speed on every correction, so the follower settles instead of hunting.</summary>
+        public float YawDamping { get; set; } = 0.35f;
         public float LateralOffset { get; set; }
         public float Throttle { get; set; } = 1f;
 
@@ -45,7 +47,7 @@ namespace Downstream.Core.AI
             return new BoatInput
             {
                 Throttle = Throttle,
-                Steer = SimMath.Clamp(error * SteerGain, -1f, 1f),
+                Steer = SimMath.Clamp(error * SteerGain - boat.YawRate * YawDamping, -1f, 1f),
             };
         }
     }

@@ -85,6 +85,7 @@ namespace Downstream.Water
                 }
             }
 
+            _boulderObjects.Clear();
             var boulders = g.Boulders;
             if (boulders == null) return;
             for (int i = 0; i < boulders.Length; i++)
@@ -101,8 +102,13 @@ namespace Downstream.Water
                 var r = go.GetComponent<MeshRenderer>();
                 r.sharedMaterial = rock;
                 r.shadowCastingMode = ShadowCastingMode.On;
+                _boulderObjects.Add(go);
             }
         }
+
+        private readonly List<GameObject> _boulderObjects = new List<GameObject>();
+        /// <summary>The block boulders, in the order of the river's boulder list; the dressing may re-skin them.</summary>
+        public IReadOnlyList<GameObject> BoulderObjects => _boulderObjects;
 
         /// <summary>Uploads the water, builds the surface grid and the bed. Call again for a different river.</summary>
         public void Build(RiverWater water) => Build(water, null);

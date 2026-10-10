@@ -29,7 +29,7 @@ namespace Downstream.Editor
         private const string SettingsDir = Root + "/Settings";
         private const string TrackDir = Root + "/Tracks/Greybox";
         private const string MegaKitDir = Root + "/Art/Vendor/StylizedNatureMegaKit/Models";
-        private const string HdriPath = Root + "/Art/Vendor/PolyHaven/kloofendal_48d_partly_cloudy_puresky_2k.hdr";
+        private const string HdriPath = Root + "/Art/Vendor/PolyHaven/kloofendal_48d_partly_cloudy_puresky_4k.hdr";
         private const string PrefabDir = Root + "/Prefabs";
         private const string SceneDir = Root + "/Scenes";
 
@@ -80,6 +80,7 @@ namespace Downstream.Editor
             var groundShader = Shader.Find("Downstream/Greybox Ground") ?? litShader;
             var bedMat = EnsureMaterial(TrackDir + "/GreyboxBed.mat", groundShader, Stones, 0.35f);
             if (bedMat.HasProperty("_StoneColor")) { bedMat.SetColor("_StoneColor", Stones); bedMat.SetColor("_GrassColor", Sand); bedMat.SetColor("_SandColor", new Color(0.80f, 0.74f, 0.58f)); bedMat.SetColor("_EarthColor", Earth); bedMat.SetColor("_CliffColor", Cliff); }
+            GroundTextures(bedMat);
             var waterMat = EnsureMaterial(TrackDir + "/GreyboxWater.mat", waterShader, Color.white, 0.94f);
             ConfigureWaterMaterial(waterMat);
             var itemMat = EnsureMaterial(TrackDir + "/GreyboxItem.mat", litShader, SkyBlue, 0.35f);
@@ -149,6 +150,7 @@ namespace Downstream.Editor
             if (!AssetDatabase.IsValidFolder(dir)) AssetDatabase.CreateFolder(TrackDir, "Dressing");
             var hills = EnsureMaterial(dir + "/Hills.mat", groundShader, Grass, 0.2f);
             if (hills.HasProperty("_GrassColor")) { hills.SetColor("_GrassColor", new Color(0.33f, 0.47f, 0.24f)); hills.SetColor("_StoneColor", Stones); hills.SetColor("_SandColor", Sand); hills.SetColor("_EarthColor", Earth); hills.SetColor("_CliffColor", Cliff); }
+            GroundTextures(hills);
             var propShader = Shader.Find("Downstream/Greybox Prop") ?? litShader;
             var canopies = new[]
             {
@@ -211,6 +213,30 @@ namespace Downstream.Editor
             return mat;
         }
 
+        private const string PolyHavenTextures = Root + "/Art/Vendor/PolyHaven/Textures";
+
+        /// <summary>Wires the CC0 ground textures (grass, meadow, earth, rock) when they are on disk.</summary>
+        private static void GroundTextures(Material mat)
+        {
+            if (!mat.HasProperty("_UseTextures")) return;
+            Texture2D Tex(string name) => AssetDatabase.LoadAssetAtPath<Texture2D>(PolyHavenTextures + "/" + name + "_1k.jpg");
+            var grass = Tex("aerial_grass_rock_diff");
+            if (grass == null) { mat.SetFloat("_UseTextures", 0f); return; }
+            mat.SetFloat("_UseTextures", 1f);
+            mat.SetTexture("_GrassMap", grass);
+            mat.SetTexture("_GrassNormal", Tex("aerial_grass_rock_nor_gl"));
+            mat.SetTexture("_MeadowMap", Tex("leafy_grass_diff"));
+            mat.SetTexture("_MeadowNormal", Tex("leafy_grass_nor_gl"));
+            mat.SetTexture("_EarthMap", Tex("forrest_ground_01_diff"));
+            mat.SetTexture("_EarthNormal", Tex("forrest_ground_01_nor_gl"));
+            mat.SetTexture("_RockMap", Tex("rock_face_diff"));
+            mat.SetTexture("_RockNormal", Tex("rock_face_nor_gl"));
+            mat.SetFloat("_TexScale", 6f);
+            mat.SetFloat("_TintStrength", 0.6f);
+            mat.SetFloat("_NormalStrength", 0.9f);
+            EditorUtility.SetDirty(mat);
+        }
+
         private static GameObject[] Vendor(params string[] names)
         {
             var list = new List<GameObject>();
@@ -242,7 +268,7 @@ namespace Downstream.Editor
             sun.color = new Color(1f, 0.93f, 0.80f);
             sun.intensity = 1.35f;
             sun.shadows = LightShadows.Soft;
-            sun.shadowStrength = 0.9f; // the sky fill keeps shadows cool, never grey-black
+            sun.shadowStrength = 1.0f; // the sky fill keeps shadows cool, never grey-black
             sun.shadowBias = 0.03f;
             sun.shadowNormalBias = 0.5f;
             sun.transform.rotation = Quaternion.Euler(48f, -38f, 0f);
@@ -269,8 +295,8 @@ namespace Downstream.Editor
                 sun.intensity = 1.2f;
                 RenderSettings.fogColor = horizon;
             }
-            RenderSettings.fogStartDistance = 110f;
-            RenderSettings.fogEndDistance = 900f;
+            RenderSettings.fogStartDistance = 160f;
+            RenderSettings.fogEndDistance = 1400f;
             return sun;
         }
 
@@ -328,12 +354,12 @@ namespace Downstream.Editor
             tonemapping.mode.Override(TonemappingMode.ACES);
             var bloom = GetOrAdd<Bloom>(profile);
             bloom.threshold.Override(1.0f);
-            bloom.intensity.Override(0.32f);
+            bloom.intensity.Override(0.26f);
             bloom.scatter.Override(0.72f);
             var colour = GetOrAdd<ColorAdjustments>(profile);
             colour.postExposure.Override(0.05f);
-            colour.contrast.Override(12f);
-            colour.saturation.Override(12f);
+            colour.contrast.Override(18f);
+            colour.saturation.Override(6f);
             var vignette = GetOrAdd<Vignette>(profile);
             vignette.intensity.Override(0.24f);
             vignette.smoothness.Override(0.45f);
@@ -428,10 +454,19 @@ namespace Downstream.Editor
 
             var hullMesh = EnsureMesh(PrefabDir + "/GreyboxHullMesh.asset", () => BlockBoat.Hull("GreyboxHull"));
             var deckMesh = EnsureMesh(PrefabDir + "/GreyboxDeckMesh.asset", () => BlockBoat.Deck("GreyboxDeck"));
-            var skinMesh = EnsureMesh(PrefabDir + "/GreyboxPilotMesh.asset", () => BlockBoat.PilotSkin("GreyboxPilot"));
-            var vestMesh = EnsureMesh(PrefabDir + "/GreyboxVestMesh.asset", () => BlockBoat.Vest("GreyboxVest"));
-            var helmetMesh = EnsureMesh(PrefabDir + "/GreyboxHelmetMesh.asset", () => BlockBoat.Helmet("GreyboxHelmet"));
-            var paddleMesh = EnsureMesh(PrefabDir + "/GreyboxPaddleMesh.asset", () => BlockBoat.Paddle("GreyboxPaddle"));
+            var headMesh = EnsureMesh(PrefabDir + "/GreyboxPilotMesh.asset", () => BlockBoat.Head("GreyboxPilotHead"));
+            var torsoMesh = EnsureMesh(PrefabDir + "/GreyboxVestMesh.asset", () => BlockBoat.Torso("GreyboxTorso"));
+            var seatMesh = EnsureMesh(PrefabDir + "/GreyboxSeatMesh.asset", () => BlockBoat.Seat("GreyboxSeat"));
+            var helmetMesh = EnsureMesh(PrefabDir + "/GreyboxHelmetMesh.asset", () => BlockBoat.HelmetOnHead("GreyboxHelmet"));
+            var armMesh = EnsureMesh(PrefabDir + "/GreyboxArmMesh.asset", () => BlockBoat.Arm("GreyboxArm"));
+            var paddleMesh = EnsureMesh(PrefabDir + "/GreyboxPaddleMesh.asset", () => BlockBoat.PaddleCentred("GreyboxPaddle"));
+            var gogglesMesh = EnsureMesh(PrefabDir + "/GreyboxGogglesMesh.asset", () => BlockBoat.Goggles("GreyboxGoggles"));
+            var helmetTrimMesh = EnsureMesh(PrefabDir + "/GreyboxHelmetTrimMesh.asset", () => BlockBoat.HelmetTrim("GreyboxHelmetTrim"));
+            var vestTrimMesh = EnsureMesh(PrefabDir + "/GreyboxVestTrimMesh.asset", () => BlockBoat.VestTrim("GreyboxVestTrim"));
+            var legsMesh = EnsureMesh(PrefabDir + "/GreyboxLegsMesh.asset", () => BlockBoat.Legs("GreyboxLegs"));
+            var handMesh = EnsureMesh(PrefabDir + "/GreyboxHandMesh.asset", () => BlockBoat.Hand("GreyboxHand"));
+            var sleeveMesh = EnsureMesh(PrefabDir + "/GreyboxSleeveMesh.asset", () => BlockBoat.Sleeve("GreyboxSleeve"));
+            var darkMat = PropMaterial(PrefabDir + "/GreyboxDark.mat", propShader, new Color(0.16f, 0.17f, 0.20f), new Color(0.26f, 0.27f, 0.31f), new Color(0.08f, 0.09f, 0.11f));
 
             var root = new GameObject("GreyboxBoat");
             Renderer Part(string name, Mesh mesh, Material mat)
@@ -446,10 +481,39 @@ namespace Downstream.Editor
             }
             var hull = Part("Hull", hullMesh, hullMat);
             Part("Deck", deckMesh, trimMat);
-            Part("Pilot", skinMesh, skinMat);
-            Part("Vest", vestMesh, trimMat);
-            var helmet = Part("Helmet", helmetMesh, hullMat);
-            Part("Paddle", paddleMesh, paddleMat);
+            Part("Seat", seatMesh, trimMat);
+            // Articulated pilot: hips -> torso -> (neck -> head + helmet), shoulders -> arms, chest -> paddle.
+            Renderer Child(Transform parent, string name, Mesh mesh, Material mat, Vector3 localPos)
+            {
+                var go = new GameObject(name, typeof(MeshFilter), typeof(MeshRenderer));
+                go.transform.SetParent(parent, false);
+                go.transform.localPosition = localPos;
+                go.GetComponent<MeshFilter>().sharedMesh = mesh;
+                var r = go.GetComponent<MeshRenderer>();
+                r.sharedMaterial = mat;
+                return r;
+            }
+            var hips = new GameObject("Pilot").transform;
+            hips.SetParent(root.transform, false);
+            hips.localPosition = BlockBoat.Hips + new Vector3(0f, 0.1f, 0f);
+            var torsoR = Child(hips, "Torso", torsoMesh, trimMat, Vector3.zero);
+            var torso = torsoR.transform;
+            var headR = Child(torso, "Head", headMesh, skinMat, BlockBoat.NeckFromHips);
+            var head = headR.transform;
+            var helmet = Child(head, "Helmet", helmetMesh, hullMat, Vector3.zero);
+            Child(head, "Goggles", gogglesMesh, darkMat, Vector3.zero);
+            Child(head, "HelmetTrim", helmetTrimMesh, trimMat, Vector3.zero);
+            var vestTrim = Child(torso, "VestTrim", vestTrimMesh, hullMat, Vector3.zero);
+            Child(hips, "Legs", legsMesh, darkMat, Vector3.zero);
+            var armL = Child(torso, "ArmL", armMesh, skinMat, BlockBoat.ShoulderL).transform;
+            var armR = Child(torso, "ArmR", armMesh, skinMat, BlockBoat.ShoulderR).transform;
+            var sleeveL = Child(armL, "Sleeve", sleeveMesh, hullMat, Vector3.zero);
+            var sleeveR = Child(armR, "Sleeve", sleeveMesh, hullMat, Vector3.zero);
+            var paddle = Child(torso, "Paddle", paddleMesh, paddleMat, BlockBoat.GripFromHips).transform;
+            Child(paddle, "HandL", handMesh, darkMat, new Vector3(-0.36f, 0f, 0f));
+            Child(paddle, "HandR", handMesh, darkMat, new Vector3(0.36f, 0f, 0f));
+            var animator = root.AddComponent<BoatAnimator>();
+            animator.Configure(torso, head, paddle, armL, armR);
             // The sim does all collision through one query proxy; views carry no colliders.
             var effects = root.AddComponent<BoatEffects>();
             effects.Configure(wakeMat, sprayMat);
@@ -457,10 +521,14 @@ namespace Downstream.Editor
             var so = new SerializedObject(view);
             so.FindProperty("_hull").objectReferenceValue = hull.transform;
             so.FindProperty("_effects").objectReferenceValue = effects;
+            so.FindProperty("_animator").objectReferenceValue = animator;
             var livery = so.FindProperty("_livery");
-            livery.arraySize = 2;
+            livery.arraySize = 5;
             livery.GetArrayElementAtIndex(0).objectReferenceValue = hull;
             livery.GetArrayElementAtIndex(1).objectReferenceValue = helmet;
+            livery.GetArrayElementAtIndex(2).objectReferenceValue = vestTrim;
+            livery.GetArrayElementAtIndex(3).objectReferenceValue = sleeveL;
+            livery.GetArrayElementAtIndex(4).objectReferenceValue = sleeveR;
             so.ApplyModifiedPropertiesWithoutUndo();
 
             var prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
@@ -602,8 +670,10 @@ namespace Downstream.Editor
             mat.SetColor("_HorizonColor", new Color(0.85f, 0.90f, 0.95f));
             mat.SetFloat("_Fresnel", 1f);
             mat.SetFloat("_FoamScale", 0.22f);
-            mat.SetFloat("_FoamFlowStart", 4f);
-            mat.SetFloat("_FoamFlowFull", 7f);
+            mat.SetFloat("_FoamFlowStart", 8.5f);
+            mat.SetFloat("_FoamFlowFull", 13f);
+            mat.SetFloat("_SlowSpeed", 2.5f);
+            mat.SetFloat("_FastSpeed", 9f);
             mat.SetFloat("_FoamSlope", 0.12f);
             EditorUtility.SetDirty(mat);
         }

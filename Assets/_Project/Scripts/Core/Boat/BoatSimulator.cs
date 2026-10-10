@@ -28,8 +28,12 @@ namespace Downstream.Core.Boat
     /// </summary>
     public interface IBoatCollider
     {
-        /// <summary>Pushes the boat out of static geometry and removes velocity into the contact. Returns true on contact.</summary>
-        bool Resolve(ref SimVec3 position, ref SimVec3 velocity, float yaw, in BoatTuning tuning);
+        /// <summary>
+        /// Pushes the boat out of static geometry and removes (and partly reflects, by WallRestitution) velocity
+        /// into the contact. Returns true on contact; <paramref name="impactSpeed"/> is the fastest closing speed
+        /// into any contact this tick, so the sim can charge for a hard hit.
+        /// </summary>
+        bool Resolve(ref SimVec3 position, ref SimVec3 velocity, float yaw, in BoatTuning tuning, out float impactSpeed);
     }
 
     /// <summary>
@@ -290,6 +294,11 @@ namespace Downstream.Core.Boat
                     events |= BoatEvents.Grounding;
                 }
 
+                // Keel turning scrubs speed: the faster you turn without drifting, the more you give up.
+                if (s.DriftDirection == 0 && !spinning) af -= SimMath.Abs(s.YawRate) * SimMath.Max(vf, 0f) * t.TurnScrub;
+                // Eddies are slack water: a hull that wanders in loses way.
+                if (inEddy) af -= vf * t.EddyDrag;
+
                 float grip = s.DriftDirection != 0 || spinning ? t.DriftGrip : t.KeelGrip;
                 if (mods.GripScale > 0f) grip *= mods.GripScale;
                 float al = -vl * grip * t.GripRate;
@@ -324,7 +333,11 @@ namespace Downstream.Core.Boat
                 if (s.DriftDirection != 0)
                     targetYawRate = s.DriftDirection * t.TurnRate * (0.8f + 0.45f * input.Steer * s.DriftDirection);
                 else
-                    targetYawRate = input.Steer * t.TurnRate * speedFactor * (vf < 0f ? -1f : 1f);
+                {
+                    // Keel turning tightens at low speed and loosens at high speed; the drift is the fast way round.
+                    float falloff = t.TurnSpeedFalloff > 0f ? 1f / (1f + SimMath.Max(vf, 0f) / t.TurnSpeedFalloff) : 1f;
+                    targetYawRate = input.Steer * t.TurnRate * speedFactor * falloff * (vf < 0f ? -1f : 1f);
+                }
                 if (!wet) targetYawRate *= t.AirSteerFactor;
                 else if (inEddy) targetYawRate *= t.EddyTurnScale; // the eddy line swings the hull round
                 s.YawRate = SimMath.MoveTowards(s.YawRate, targetYawRate, t.YawResponse * t.TurnRate * dt);
@@ -356,8 +369,17 @@ namespace Downstream.Core.Boat
             ClampAngle(ref s.Pitch, ref s.PitchRate, limit);
             ClampAngle(ref s.Roll, ref s.RollRate, limit);
 
-            if (collider != null)
-                collider.Resolve(ref s.Position, ref s.Velocity, s.Yaw, t);
+            if (collider != null && collider.Resolve(ref s.Position, ref s.Velocity, s.Yaw, t, out float impact) && impact > t.WallHitSpeed)
+            {
+                // A hard hit on a bank or rock: speed comes off, the hull wallows for a moment, and the
+                // nose is knocked away from the contact so a head-on stop never pins the boat.
+                float k = SimMath.Clamp01((impact - t.WallHitSpeed) / 10f);
+                float keep = 1f - t.WallHitSpeedLoss * (0.4f + 0.6f * k);
+                s.Velocity = new SimVec3(s.Velocity.X * keep, s.Velocity.Y, s.Velocity.Z * keep);
+                s.SlapTime = SimMath.Max(s.SlapTime, t.WallHitSlowSeconds * (0.5f + 0.5f * k));
+                if (s.DriftDirection != 0) { s.DriftDirection = 0; s.DriftTier = 0; s.DriftTime = 0f; events |= BoatEvents.DriftReleased; }
+                events |= BoatEvents.HitWall;
+            }
 
             s.WetFraction = wetFraction;
             s.InCurrentLane = inLane;

@@ -36,6 +36,14 @@ Shader "Downstream/River Water"
         _FoamFlowFull ("Whitewater full at m/s", Range(0, 12)) = 6.5
         _FoamSlope ("Whitewater on slopes steeper than", Range(0.01, 1)) = 0.12
         [Header(Debug)]
+        _SlowSpeed ("Slack water speed (m/s)", Float) = 1.5
+        _FastSpeed ("Fast water speed (m/s)", Float) = 7
+        _SlowTint ("Slack water tint", Color) = (0.72, 0.86, 0.92, 1)
+        _FastTint ("Fast water tint", Color) = (1.12, 1.22, 1.16, 1)
+        _EddyTint ("Eddy tint", Color) = (0.62, 0.78, 0.82, 1)
+        _LaneMarkSpacing ("Lane marker spacing (m)", Float) = 9
+        _LaneMarkSpeed ("Lane marker speed (m/s)", Float) = 7
+        _LaneMarkColor ("Lane marker colour", Color) = (0.75, 1.0, 1.0, 1)
         _Debug ("Debug view (0 off, 1 body, 2 fresnel, 3 ambient+sun, 4 sky, 5 foam, 6 depth, 7 normal, 8 fog)", Range(0, 10)) = 0
     }
 
@@ -93,6 +101,8 @@ Shader "Downstream/River Water"
                 float _FoamFlowFull;
                 float _FoamSlope;
                 float _Debug;
+                float _SlowSpeed, _FastSpeed, _LaneMarkSpacing, _LaneMarkSpeed;
+                float4 _SlowTint, _FastTint, _EddyTint, _LaneMarkColor;
             CBUFFER_END
 
             struct Attributes
@@ -168,6 +178,16 @@ Shader "Downstream/River Water"
                     depth = (st.surfaceHeight + rise) - bed / n + waveH;
                 }
                 clip(depth);
+                // The waterline follows the smooth ground mesh in the camera depth, not the 0.5 m field texels:
+                // where the field says shallow, a ground pixel in front of the surface ends the water.
+                if (depth < 0.7)
+                {
+                    float2 shoreUv = IN.screenPos.xy / IN.screenPos.w;
+                    float shoreEye = LinearEyeDepth(SampleSceneDepth(shoreUv), _ZBufferParams);
+                    float viewDiff = shoreEye - IN.screenPos.w;
+                    clip(viewDiff + 0.004);
+                    depth = min(depth, max(viewDiff, 0.0) * 0.8 + 0.02);
+                }
 
                 float2 flow = st.flow * flowScale;
                 float speed = length(flow);
@@ -256,6 +276,26 @@ Shader "Downstream/River Water"
                 float3 scene = SampleSceneColor(refractUv);
                 float3 absorb = exp(-depth * _Absorption.rgb);
                 float3 body = lerp(_DeepColor.rgb, scene * _ShallowColor.rgb, absorb);
+                // Speed grading: fast water runs pale and bright, slack water sits deep and dull, so the fast
+                // line and the eddies read at a glance; eddies darken further.
+                float speedK = smoothstep(0.0, 1.0, saturate((speed - _SlowSpeed) / max(_FastSpeed - _SlowSpeed, 0.01)));
+                float laneSum = st.laneWeight, speedSum = speed;
+                [unroll]
+                for (int q = 0; q < 4; q++)
+                {
+                    float2 o = q == 0 ? float2(1.2, 1.2) : q == 1 ? float2(-1.2, 1.2) : q == 2 ? float2(1.2, -1.2) : float2(-1.2, -1.2);
+                    RiverStaticSample sq = SampleRiverStatic(xz + o);
+                    laneSum += sq.hasData ? sq.laneWeight : st.laneWeight;
+                    speedSum += sq.hasData ? length(sq.flow * flowScale) : speed;
+                }
+                float laneW = smoothstep(0.2, 0.8, laneSum * 0.2);
+                speedK = smoothstep(0.0, 1.0, saturate((speedSum * 0.2 - _SlowSpeed) / max(_FastSpeed - _SlowSpeed, 0.01)));
+                float eddyW = smoothstep(0.15, 0.85, st.eddyWeight);
+                body *= lerp(_SlowTint.rgb, _FastTint.rgb, saturate(speedK * 0.6 + laneW * 0.5));
+                body *= lerp(1.0, _EddyTint.rgb, eddyW);
+                // Current lane: bright bands sweeping downstream every few metres, the boost-pad language.
+                float ph = frac((st.riverDistance - t * _LaneMarkSpeed) / _LaneMarkSpacing);
+                float laneBand = laneW * smoothstep(0.55, 0.72, ph) * smoothstep(0.98, 0.84, ph);
 
                 // Lighting: one warm key, cool sky fill, glints on the ripples.
                 float4 shadowCoord = TransformWorldToShadowCoord(IN.positionWS);
@@ -280,7 +320,8 @@ Shader "Downstream/River Water"
                 float3 sky = lerp(skyGradient, probe * 1.15, _ProbeMix);
                 float3 colour = lerp(lit, sky, fresnel) + spec;
                 // Current lane: the glossy streak itself, a touch brighter where the stretched ripples catch the light.
-                colour += lane ? 0.025 * (0.5 + 0.5 * nf.y) * light.color * shadow : 0.0;
+                colour += lane ? 0.04 * (0.5 + 0.5 * nf.y) * light.color * shadow : 0.0;
+                colour += laneBand * _LaneMarkColor.rgb * 0.28 * (ambient + light.color * shadow * 0.6);
 
                 float3 foamLit = _FoamColor.rgb * (ambient + light.color * shadow * (0.5 + 0.5 * saturate(dot(N, L))));
                 colour = lerp(colour, foamLit, foam);

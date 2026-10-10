@@ -74,6 +74,9 @@ namespace Downstream.Water
             _greybox.WaterfallDistance = 700f;
             _greybox.WaterfallDrop = 6f;
             _greybox.FloodableBank = 12f;
+            // A current you can feel: narrows run near 5 m/s, pools under 3, the lane adds 3.5 on top.
+            _greybox.BaseFlow = 3.5f;
+            _greybox.LaneExtraFlow = 3.5f;
             // Obstacles read as a course: slalom gardens, bridge piers, an island choke before the falls,
             // a wide step and a rapid below it, a boulder gate near the finish. Eddies behind every rock.
             _greybox.Boulders = new[]

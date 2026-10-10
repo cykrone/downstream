@@ -115,6 +115,19 @@ namespace Downstream.Boat
 
         }
 
+        /// <summary>Sim events that deserve a one-off burst: a hard hit on a bank or rock throws water.</summary>
+        public void OnEvents(BoatEvents events)
+        {
+            if (_bow == null) return;
+            if ((events & BoatEvents.HitWall) != 0)
+            {
+                _driftL.Emit(16);
+                _driftR.Emit(16);
+                _bow.Emit(new ParticleSystem.EmitParams { startSize = 1.4f, startLifetime = 0.9f, velocity = Vector3.up * 3f }, 1);
+                _bow.Emit(20);
+            }
+        }
+
         private static void SetEmitting(ParticleSystem ps, bool on)
         {
             var em = ps.emission;

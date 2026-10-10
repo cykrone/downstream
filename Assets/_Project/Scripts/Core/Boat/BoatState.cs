@@ -32,6 +32,8 @@ namespace Downstream.Core.Boat
         WakeEdge = 1 << 13,
         BoatBump = 1 << 14,
         EnteredEddy = 1 << 15,
+        /// <summary>Hit a bank or a rock hard enough to lose speed (glancing contact only slides).</summary>
+        HitWall = 1 << 16,
     }
 
     /// <summary>
