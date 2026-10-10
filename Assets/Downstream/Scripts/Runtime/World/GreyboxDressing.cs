@@ -111,6 +111,7 @@ namespace Downstream.World
             }
             BuildStoryClusters(story);
             Cairns(landmarks);
+            StartGate(landmarks);
             FinishGate(landmarks);
             Bridge(landmarks, 560f);
             Dock(landmarks, 330f, -1);
@@ -904,10 +905,14 @@ namespace Downstream.World
         /// well as from afar, chequered bunting along both banks on the run-in, and lanterns on the towers.
         /// The sim's line is the track's last centreline sample; the band is drawn across that distance.
         /// </summary>
-        private void FinishGate(Transform parent)
+        private void FinishGate(Transform parent) => Gate(parent, _g.Length, true);
+
+        /// <summary>The start arch: the same towers and banner just ahead of the grid, in the buoy palette, no line on the water.</summary>
+        private void StartGate(Transform parent) => Gate(parent, Core.Race.RaceGrid.FrontRowDistance + 7f, false);
+
+        private void Gate(Transform parent, float z, bool finish)
         {
             _category = "props";
-            float z = _g.Length;
             var tangent = Tangent(z);
             var right = new Vector3(tangent.z, 0f, -tangent.x);
             float surface = Surface(z);
@@ -916,7 +921,7 @@ namespace Downstream.World
             float towerLateral = HalfWidth(z) + 2.6f;
             const float bannerHeight = 7f;
 
-            var black = Tone(_post, new Color(0.16f, 0.15f, 0.17f));
+            var black = Tone(_post, finish ? new Color(0.16f, 0.15f, 0.17f) : new Color(1f, 0.74f, 0.2f));
             var white = Tone(_post, new Color(0.93f, 0.91f, 0.86f));
 
             var towerTops = new Vector3[2];
@@ -930,26 +935,29 @@ namespace Downstream.World
                 Prop(parent, "Lantern", _lanternMesh, _lantern, new Vector3(foot.x, foot.y - 1f + h + 0.75f, foot.z), Quaternion.identity, Vector3.one * 1.4f, false);
                 towerTops[k] = new Vector3(foot.x, surface + bannerHeight, foot.z);
             }
-            // The banner: a chequered board between the towers, sagging a touch in the middle like cloth.
-            const int panels = 9;
+            // The banner: two rows of alternating panels, offset by one, so it reads as a chequered flag
+            // strung between the towers, sagging a touch in the middle like cloth.
+            int panels = Mathf.Max(8, Mathf.RoundToInt(Vector3.Distance(towerTops[0], towerTops[1]) / 2.2f));
+            for (int row = 0; row < 2; row++)
             for (int i = 0; i < panels; i++)
             {
                 float t0 = i / (float)panels, t1 = (i + 1) / (float)panels, tm = (t0 + t1) * 0.5f;
                 float sag = 0.35f * Mathf.Sin(tm * Mathf.PI);
                 var a = Vector3.Lerp(towerTops[0], towerTops[1], t0);
                 var b = Vector3.Lerp(towerTops[0], towerTops[1], t1);
-                var mid = (a + b) * 0.5f - Vector3.up * sag;
+                var mid = (a + b) * 0.5f - Vector3.up * (sag + 0.8f * row);
                 var dir = (b - a).normalized;
-                Prop(parent, "FinishBanner", _box, i % 2 == 0 ? black : white, mid, Quaternion.LookRotation(dir, Vector3.up), new Vector3(0.12f, 1.5f, (b - a).magnitude + 0.02f));
+                Prop(parent, finish ? "FinishBanner" : "StartBanner", _box, (i + row) % 2 == 0 ? black : white, mid, Quaternion.LookRotation(dir, Vector3.up), new Vector3(0.12f, 0.82f, (b - a).magnitude + 0.02f));
             }
             // A wire of small chequered flags under the banner.
             const int flags = 16;
             for (int i = 0; i <= flags; i++)
             {
                 float t = i / (float)flags;
-                var pos = Vector3.Lerp(towerTops[0], towerTops[1], t) - Vector3.up * (1.2f + 0.3f * Mathf.Sin(t * Mathf.PI));
-                Prop(parent, "FinishFlag", _flag, i % 2 == 0 ? black : white, pos, yaw * Quaternion.Euler(0f, 90f, 0f), Vector3.one * 1.4f, false);
+                var pos = Vector3.Lerp(towerTops[0], towerTops[1], t) - Vector3.up * (1.6f + 0.3f * Mathf.Sin(t * Mathf.PI));
+                Prop(parent, finish ? "FinishFlag" : "StartFlag", _flag, i % 2 == 0 ? black : white, pos, yaw * Quaternion.Euler(0f, 90f, 0f), Vector3.one * 1.4f, false);
             }
+            if (!finish) return;
             // The line on the water: a chequered band across the channel at the finish distance.
             var band = new Mesh { name = "FinishBand" };
             float half = HalfWidth(z) + 0.5f;

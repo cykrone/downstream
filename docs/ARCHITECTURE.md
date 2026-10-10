@@ -218,9 +218,10 @@ lower half; the ground shader fades its tiling to the palette colour with distan
 draws), bushes, rounded rocks, reeds at the waterline, flower clusters in the pop colours, lantern
 posts along the water, cairns on the outside of bends, a bridge to race under (its deck lands on a
 stone abutment at each bank with a plank ramp down to the terrace, so it is anchored to the land
-rather than hanging over the meadow), a finish gate at the mouth (stone towers with lanterns, a
-chequered banner and flag wire over the water, a chequered band on the surface at the track's last
-sample, chequered bunting along the run-in), docks with crates, a
+rather than hanging over the meadow), a start arch just ahead of the grid and a finish gate at the
+mouth (stone towers with lanterns, a two-row chequered banner and flag wire over the water; the
+finish adds a chequered band on the surface at the track's last sample and chequered bunting along
+the run-in), docks with crates, a
 shrine on the hill, and a camp or bunting every 100 m of bank. `Shaders/GreyboxProp.shader` gives
 every prop the design's form shading (lit tops, mid sides, dark undersides) with wrap lighting,
 occlusion, shadows and fog; props share a handful of materials each so the SRP batcher keeps the
